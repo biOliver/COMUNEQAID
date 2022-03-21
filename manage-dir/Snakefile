@@ -1,0 +1,75 @@
+rule all:
+    input:
+        'success/cleanup_complete.txt'
+
+rule compile:
+    input:
+        'ready/ready.txt'
+    output:
+        temp('success/compile-app-data_complete.txt')
+    params:
+        scopID = config['scopID'],
+        comID = config['comID'],
+        userID = config['userID']
+    log:
+        'logs/00_compile-app-data.log'
+    script:
+        'code/00_compile-app-data.py'
+
+rule fastqs:
+    input:
+        rules.compile.output
+    output:
+        temp('success/make-fastqs_complete.txt')
+    params:
+        scopID = config['scopID'],
+        comID = config['comID'],
+        userID = config['userID']
+    log:
+        'logs/01_make-fastqs.log'
+    threads:
+        80
+    script:
+        'code/01_make-fastqs.py'
+
+rule quant:
+    input:
+        rules.fastqs.output
+    output:
+        temp('success/map-quant_complete.txt')
+    params:
+        scopID = config['scopID'],
+        comID = config['comID'],
+        userID = config['userID']
+    log:
+        'logs/02_map-quant.log'
+    threads:
+        80
+    script:
+        'code/02_map-quant.py'
+
+rule summarize:
+    input:
+        rules.quant.output,
+    output:
+        temp('success/summarize_complete.txt')
+    params:
+        scopID = config['scopID'],
+        comID = config['comID'],
+        userID = config['userID']
+    log:
+        'logs/03_summarize.log'
+    script:
+        'code/03_summarize.R'
+
+rule cleanup:
+    input:
+        rules.summarize.output
+    output:
+        temp('success/cleanup_complete.txt')
+    params:
+        scopID = config['scopID'],
+        comID = config['comID'],
+        userID = config['userID']
+    script:
+        'code/04_cleanup.py'

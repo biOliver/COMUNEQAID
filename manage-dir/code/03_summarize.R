@@ -235,8 +235,6 @@ emptyDropsmodal <- function(q, verbose = T, plot = T, format = 'save', skipModCh
       abline(v = log10(metadata(bc.calls.new)[['inflection']]), col = '#04c2c4', lty = 2, lwd = 3)
       abline(v = log10(metadata(bc.calls)[['knee']]), col = '#d6aa89', lty = 3, lwd = 3)
       abline(v = log10(metadata(bc.calls)[['inflection']]), col = '#9fc9c9', lty = 3, lwd = 3)
-      abline(h = 40000, col = '#42e373', lty = 2, lwd = 3)
-      abline(h = 80000, col = '#e632b9', lty = 2, lwd = 3)
       if (format == 'save') {
         dev.off()
       }
@@ -716,7 +714,7 @@ for (pool.i in seq(n.pools)) {
                        CBs.called = cells.keep,
                        title = paste0('UMI-UMI plot - ', tmp.pool[['Index (10x)']]))
       
-      ggsave(filename = paste0(tmp.pool[['Index (10x)']],'-UMI-UMI-plot.png'),
+      ggsave(filename = paste0(tmp.pool[['Index (10x)']],'_UMI-UMI-plot.png'),
              plot = p,
              path = dir.outs.qc.plots,
              width = 8,

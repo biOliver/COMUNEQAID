@@ -421,7 +421,95 @@ pool.table[['SEQ NAMES (10x)']] <- ''
 pool.table[['READS (10x)']] <- 0
   
 n.pools <- dim(pool.table)[1]
+
+################################################################################
+##########                    Iterate over lane                       ##########
+################################################################################
+
+for (pool.i in seq(n.pools)) {
+  tmp.pool      <- pool.table[pool.i,]
   
+  pins.10x      <- str_split(tmp.pool[['BCL PIN (10x)']], ',', simplify = T)[1,]
+  pool.10x      <- str_split(tmp.pool[['Index (10x)']], ',', simplify = T)[1,]
+  seqs.10x      <- listLen(pins.10x)
+  
+  for (pin.i in seq(pins.10x)) {
+    tmp.seq <- grep(list.files(dir.bcls), pattern = pins.10x[pin.i], value = T)
+    seqs.10x[pin.i] <- tmp.seq
+    tmp.seqs.10x <- c(tmp.seqs.10x, tmp.seq)
+  }
+  
+  year <- substr(tmp.seq, start = 1, stop = 2)
+  tmp.seqs.10x.unique <- unique(tmp.seqs.10x)
+  tmp.pool[['SEQ NAMES (10x)']] <- paste(tmp.seqs.10x.unique, collapse = ',')
+  tmp.seqs.all <- tmp.seqs.10x.unique
+  
+  if (var.wofl == '10x + HTO') {
+    pins.hto      <- str_split(tmp.pool[['BCL PIN (HTO)']], ',', simplify = T)[1,]
+    pool.hto      <- str_split(tmp.pool[['Index (HTO)']], ',', simplify = T)[1,]
+    seqs.hto      <- listLen(pins.hto)
+    
+    for (pin.i in seq(pins.hto)) {
+      tmp.seq <- grep(list.files(dir.bcls), pattern = pins.hto[pin.i], value = T)
+      seqs.hto[pin.i] <- tmp.seq
+      tmp.seqs.hto <- c(tmp.seqs.hto,tmp.seq)
+    }
+    
+    tmp.seqs.hto.unique <- unique(tmp.seqs.hto)
+    tmp.pool[['SEQ NAMES (HTO)']] <- paste(tmp.seqs.hto.unique, collapse = ',')
+    tmp.seqs.all <- unique(tmp.seqs.10x.unique,tmp.seqs.hto.unique)
+  }
+  
+  for (bcl in rev(tmp.seqs.all)) {
+    stats.json.path <- file.path(dir.proj,'scRNAseq','02_FASTQ',bcl,'fastq-path/Stats/Stats.json')
+    js <- jsonlite::read_json(stats.json.path, simplifyVector = TRUE)
+    lane_data <- collapse_demux_results(js[['ConversionResults']][['DemuxResults']])
+    lane_data[['Lane']] <- factor(lane_data[['Lane']])
+    known_barcodes <- lane_data[,c('Lane', 'SampleId', 'NumberReads')]
+    
+    if (year <= 20) {
+      known_barcodes[['SampleId']] <- substr(known_barcodes[['SampleId']],1,nchar(known_barcodes[['SampleId']]) - 2)
+    }
+    
+    known_barcodes %>%
+      group_by(SampleId) %>%
+      summarise(Counts = sum(NumberReads)) -> read.df
+    
+    for (pool.10x.i in seq(pool.10x)) {
+        
+        if (year <= 20) {
+          tmp.index <- paste0('SI-GA-', pool.10x[pool.10x.i])
+          tmp.pool[['Index (10x)']] <- paste(paste0('SI-GA-', pool.10x), collapse = ',')
+        }
+        if (year >= 21) {
+          tmp.index <- paste0('SI-TT-', pool.10x[pool.10x.i])
+          tmp.pool[['Index (10x)']] <- paste(paste0('SI-TT-', pool.10x), collapse = ',')
+        }
+        if (tmp.index %in% read.df[['SampleId']]) {
+          tmp.pool[['READS (10x)']] <- tmp.pool[['READS (10x)']] + read.df[read.df[['SampleId']] == tmp.index,] [['Counts']]
+        }
+    }
+    if (var.wofl == '10x + HTO') {
+      for (pool.hto.i in seq(pool.hto)) {
+        tmp.index <- pool.hto[pool.hto.i]
+        
+        if (tmp.index %in% read.df[['SampleId']]) {
+          tmp.pool[['READS (HTO)']] <- tmp.pool[['READS (HTO)']] + read.df[read.df[['SampleId']] == tmp.index,][['Counts']]
+        }
+      }
+    }
+  }
+  pool.table[pool.i,] <- tmp.pool
+}
+
+nPools        <- dim(pool.table)[1]
+
+dir.create(dir.outs.indi, recursive = T, showWarnings = F)
+dir.create(dir.outs.comb, recursive = T, showWarnings = F)
+dir.create(dir.outs.qc.plots, recursive = T, showWarnings = F)
+dir.create(dir.outs.qc.summa, recursive = T, showWarnings = F)
+dir.create(dir.outs.log, recursive = T, showWarnings = F)
+
 
 ################################################################################
 ##########                          QC plots                          ##########
@@ -519,96 +607,6 @@ ggsave(filename = paste0('readDistribution_bcl2fastq.png'),
        path = dir.outs.qc.plots,
        width = 12,
        height = 12)
-
-
-################################################################################
-##########                    Iterate over lane                       ##########
-################################################################################
-
-for (pool.i in seq(n.pools)) {
-  tmp.pool      <- pool.table[pool.i,]
-  
-  pins.10x      <- str_split(tmp.pool[['BCL PIN (10x)']], ',', simplify = T)[1,]
-  pool.10x      <- str_split(tmp.pool[['Index (10x)']], ',', simplify = T)[1,]
-  seqs.10x      <- listLen(pins.10x)
-  
-  for (pin.i in seq(pins.10x)) {
-    tmp.seq <- grep(list.files(dir.bcls), pattern = pins.10x[pin.i], value = T)
-    seqs.10x[pin.i] <- tmp.seq
-    tmp.seqs.10x <- c(tmp.seqs.10x, tmp.seq)
-  }
-  
-  year <- substr(tmp.seq, start = 1, stop = 2)
-  tmp.seqs.10x.unique <- unique(tmp.seqs.10x)
-  tmp.pool[['SEQ NAMES (10x)']] <- paste(tmp.seqs.10x.unique, collapse = ',')
-  tmp.seqs.all <- tmp.seqs.10x.unique
-  
-  if (var.wofl == '10x + HTO') {
-    pins.hto      <- str_split(tmp.pool[['BCL PIN (HTO)']], ',', simplify = T)[1,]
-    pool.hto      <- str_split(tmp.pool[['Index (HTO)']], ',', simplify = T)[1,]
-    seqs.hto      <- listLen(pins.hto)
-    
-    for (pin.i in seq(pins.hto)) {
-      tmp.seq <- grep(list.files(dir.bcls), pattern = pins.hto[pin.i], value = T)
-      seqs.hto[pin.i] <- tmp.seq
-      tmp.seqs.hto <- c(tmp.seqs.hto,tmp.seq)
-    }
-    
-    tmp.seqs.hto.unique <- unique(tmp.seqs.hto)
-    tmp.pool[['SEQ NAMES (HTO)']] <- paste(tmp.seqs.hto.unique, collapse = ',')
-    tmp.seqs.all <- unique(tmp.seqs.10x.unique,tmp.seqs.hto.unique)
-  }
-  
-  for (bcl in rev(tmp.seqs.all)) {
-    stats.json.path <- file.path(dir.proj,'scRNAseq','02_FASTQ',bcl,'fastq-path/Stats/Stats.json')
-    js <- jsonlite::read_json(stats.json.path, simplifyVector = TRUE)
-    lane_data <- collapse_demux_results(js[['ConversionResults']][['DemuxResults']])
-    lane_data[['Lane']] <- factor(lane_data[['Lane']])
-    known_barcodes <- lane_data[,c('Lane', 'SampleId', 'NumberReads')]
-    
-    if (year <= 20) {
-      known_barcodes[['SampleId']] <- substr(known_barcodes[['SampleId']],1,nchar(known_barcodes[['SampleId']]) - 2)
-    }
-    
-    known_barcodes %>%
-      group_by(SampleId) %>%
-      summarise(Counts = sum(NumberReads)) -> read.df
-    
-    for (pool.10x.i in seq(pool.10x)) {
-        
-        if (year <= 20) {
-          tmp.index <- paste0('SI-GA-', pool.10x[pool.10x.i])
-          tmp.pool[['Index (10x)']] <- paste(paste0('SI-GA-', pool.10x), collapse = ',')
-        }
-        if (year >= 21) {
-          tmp.index <- paste0('SI-TT-', pool.10x[pool.10x.i])
-          tmp.pool[['Index (10x)']] <- paste(paste0('SI-TT-', pool.10x), collapse = ',')
-        }
-        if (tmp.index %in% read.df[['SampleId']]) {
-          tmp.pool[['READS (10x)']] <- tmp.pool[['READS (10x)']] + read.df[read.df[['SampleId']] == tmp.index,] [['Counts']]
-        }
-    }
-    if (var.wofl == '10x + HTO') {
-      for (pool.hto.i in seq(pool.hto)) {
-        tmp.index <- pool.hto[pool.hto.i]
-        
-        if (tmp.index %in% read.df[['SampleId']]) {
-          tmp.pool[['READS (HTO)']] <- tmp.pool[['READS (HTO)']] + read.df[read.df[['SampleId']] == tmp.index,][['Counts']]
-        }
-      }
-    }
-  }
-  pool.table[pool.i,] <- tmp.pool
-}
-
-nPools        <- dim(pool.table)[1]
-
-dir.create(dir.outs.indi, recursive = T, showWarnings = F)
-dir.create(dir.outs.comb, recursive = T, showWarnings = F)
-dir.create(dir.outs.qc.plots, recursive = T, showWarnings = F)
-dir.create(dir.outs.qc.summa, recursive = T, showWarnings = F)
-dir.create(dir.outs.log, recursive = T, showWarnings = F)
-
 
 ################################################################################
 ##########       Processing single nucleus RNA sequencing data        ##########

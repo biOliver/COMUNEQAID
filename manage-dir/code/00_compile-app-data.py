@@ -93,9 +93,9 @@ userID = snakemake.params[2]
 
 uniqueID = f'{scopID}_{comID}'
 
-path_share = f'/projects/{userID}/COMUNEQAID/outs/{scopID}' # <- Change this to your own workflow directory
+path_share = f'/projects/{userID}/COMUNEQAID/outs/{scopID}'
 path_bcls = f'{path_share}/scRNAseq/01_BCL/'
-path_tmp = f'/projects/SCOP/pipelines/COMUNEQAID/COMUNEQAID-app/app-data/tmp-data/{uniqueID}'
+path_tmp = f'/projects/{userID}/COMUNEQAID/manage-dir/tmp-data/{uniqueID}'
 path_sample_sheets = f'{path_tmp}/sample-sheets'
 path_hto_features = f'{path_tmp}/hto-features'
 path_templates = f'/projects/SCOP/resources/non-species-specific/templates'

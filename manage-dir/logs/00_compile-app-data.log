@@ -1,0 +1,54 @@
+################################################################################
+####################                                        ####################
+##########                         COMUNEQAID                         ##########
+##########   ( COmbine MUltiple single Nuclei sEQuencing runs AID )   ##########
+##########                                                            ##########
+####################                                        ####################
+################################################################################
+#
+#
+#
+################################################################################
+#####                                                                      #####
+#####                         Compiling user input                         #####
+#####                                                        * / *****     #####
+################################################################################
+#####
+##
+##	SCOP ID:	SCOP_2021_0142
+##	COMUNEQA ID:	220321_brain
+##
+##		number of samples:	10
+##		workflow:		10x + HTO
+##		type:			Nuclei
+##		organism:		Human
+##		available sequencing runs:
+##		-	220321_A00642_0257_BHWFJNDRXY
+##
+#####
+##
+##	Creating pool table...
+##
+##	10x libraries:
+##	-	initiating PIN dictionary...
+##	-	updating PIN dictionary with info (indices and full seq name)...
+##	-	dictionary complete:
+##		PIN:		0257
+##		Seq name:	220321_A00642_0257_BHWFJNDRXY
+##		Indices:	{'C10', 'H9'}
+##	-	creating samplesheet...
+##
+##	HTO libraries:
+##	-	initiating PIN dictionary...
+##	-	updating PIN dictionary with info (indices and full seq name)...
+##	-	dictionary complete:
+##		PIN:		0257
+##		Seq name:	220321_A00642_0257_BHWFJNDRXY
+##		Indices:	{'D702', 'D701'}
+##	-	updating samplesheet...
+##	-	creating features.tsv(s)...
+##
+##	Saving temporary variables to temporary folder...
+##
+###
+################################################################################

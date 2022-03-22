@@ -376,7 +376,7 @@ user.ID  <- snakemake@params[['userID']]
 unique.ID <- paste(scop.ID,com.ID,sep = '_')
 
 dir.proj <- paste0('/', file.path('projects',user.ID,'COMUNEQAID','outs',scop.ID)) # <- change to your own WD
-dir.data <- paste0('/', file.path('projects','SCOP','pipelines','COMUNEQAID','COMUNEQAID-app','app-data','tmp-data',unique.ID))
+dir.data <- paste0('/', file.path('projects',user.ID,'COMUNEQAID','manage-dir','tmp-data',unique.ID))
 
 dir.outs.qc <- file.path(dir.proj, 'scRNAseq', '00_QC')
 dir.bcls <- file.path(dir.proj, 'scRNAseq', '01_BCL')

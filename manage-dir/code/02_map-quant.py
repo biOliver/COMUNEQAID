@@ -27,7 +27,7 @@ def unpackInfo(fname):
 path_share = f'/projects/{userID}/COMUNEQAID/outs/{scopID}'
 path_fastq = f'{path_share}/scRNAseq/02_FASTQ'
 path_outs = f'{path_share}/scRNAseq/03_PipelineOut/{comID}'
-path_tmp = f'/projects/SCOP/pipelines/COMUNEQAID/COMUNEQAID-app/app-data/tmp-data/{uniqueID}'
+path_tmp = f'/projects/{userID}/COMUNEQAID/manage-dir/tmp-data/{uniqueID}'
 path_res = f'/projects/SCOP/resources'
 
 # Run vars

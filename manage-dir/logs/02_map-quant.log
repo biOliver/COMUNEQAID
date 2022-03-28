@@ -1,0 +1,129 @@
+################################################################################
+#####                                                                      #####
+#####                      Mapping and quantification                      #####
+#####                                                      *** / *****     #####
+################################################################################
+#####
+##
+##	Mapping and quantifying 10x libraries:
+##	-	proccessing index:	SI-GA-C9
+##		(from 201002_A00642_0106_BHTJ77DMXX, 201204_A00642_0124_BHV53GDMXX)
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##	-	proccessing index:	SI-GA-C7
+##		(from 201002_A00642_0106_BHTJ77DMXX, 201204_A00642_0124_BHV53GDMXX)
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##	-	proccessing index:	SI-GA-C11
+##		(from 201002_A00642_0106_BHTJ77DMXX, 201204_A00642_0124_BHV53GDMXX)
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##	-	proccessing index:	SI-GA-C10
+##		(from 201002_A00642_0106_BHTJ77DMXX, 201204_A00642_0124_BHV53GDMXX)
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##	-	proccessing index:	SI-GA-B10
+##		(from 201002_A00642_0106_BHTJ77DMXX, 201204_A00642_0124_BHV53GDMXX)
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##	-	proccessing index:	SI-GA-C8
+##		(from 201002_A00642_0106_BHTJ77DMXX, 201204_A00642_0124_BHV53GDMXX)
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##	-	proccessing index:	SI-GA-B9
+##		(from 201002_A00642_0106_BHTJ77DMXX, 201204_A00642_0124_BHV53GDMXX)
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##	-	proccessing index:	SI-GA-B8
+##		(from 201002_A00642_0106_BHTJ77DMXX, 201204_A00642_0124_BHV53GDMXX)
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##	-	proccessing index:	SI-GA-C12
+##		(from 201002_A00642_0106_BHTJ77DMXX, 201204_A00642_0124_BHV53GDMXX)
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##	Mapping and quantifying HTO libraries:
+##	-	proccessing index:	D705
+##		(from 201002_A00642_0106_BHTJ77DMXX)
+##	building HTO index
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##	-	proccessing index:	D706
+##		(from 201002_A00642_0106_BHTJ77DMXX)
+##	building HTO index
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##	-	proccessing index:	D707
+##		(from 201002_A00642_0106_BHTJ77DMXX)
+##	building HTO index
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##	-	proccessing index:	D708
+##		(from 201002_A00642_0106_BHTJ77DMXX)
+##	building HTO index
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##	-	proccessing index:	D703
+##		(from 201002_A00642_0106_BHTJ77DMXX)
+##	building HTO index
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##	-	proccessing index:	D710
+##		(from 201002_A00642_0106_BHTJ77DMXX)
+##	building HTO index
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##	-	proccessing index:	D709
+##		(from 201002_A00642_0106_BHTJ77DMXX)
+##	building HTO index
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##	-	proccessing index:	D704
+##		(from 201002_A00642_0106_BHTJ77DMXX)
+##	building HTO index
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##	-	proccessing index:	D702
+##		(from 201002_A00642_0106_BHTJ77DMXX)
+##	building HTO index
+##	mapping with alevin
+##	generating permit list
+##	collating
+##	quantifying
+##
+###
+################################################################################

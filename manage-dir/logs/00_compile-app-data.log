@@ -1,0 +1,60 @@
+################################################################################
+####################                                        ####################
+##########                         COMUNEQAID                         ##########
+##########   ( COmbine MUltiple single Nuclei sEQuencing runs AID )   ##########
+##########                                                            ##########
+####################                                        ####################
+################################################################################
+#
+#
+#
+################################################################################
+#####                                                                      #####
+#####                         Compiling user input                         #####
+#####                                                        * / *****     #####
+################################################################################
+#####
+##
+##	SCOP ID:	SCOP_2020_0102
+##	COMUNEQA ID:	200713-201002-201204_adipose-B
+##
+##		number of samples:	35
+##		workflow:		10x + HTO
+##		type:			Nuclei
+##		organism:		Human
+##		available sequencing runs:
+##		-	200713_A00642_0088_AHNFM2DRXX
+##		-	201204_A00642_0124_BHV53GDMXX
+##		-	201002_A00642_0106_BHTJ77DMXX
+##		-	201204_A00642_0123_AHV2HVDMXX
+##
+#####
+##
+##	Creating pool table...
+##
+##	10x libraries:
+##	-	initiating PIN dictionary...
+##	-	updating PIN dictionary with info (indices and full seq name)...
+##	-	dictionary complete:
+##		PIN:		0106
+##		Seq name:	201002_A00642_0106_BHTJ77DMXX
+##		Indices:	{'C7', 'C8', 'C9', 'C11', 'C12', 'B9', 'C10', 'B10', 'B8'}
+##		PIN:		0124
+##		Seq name:	201204_A00642_0124_BHV53GDMXX
+##		Indices:	{'C7', 'C8', 'C9', 'C11', 'C12', 'B9', 'C10', 'B10', 'B8'}
+##	-	creating samplesheet...
+##
+##	HTO libraries:
+##	-	initiating PIN dictionary...
+##	-	updating PIN dictionary with info (indices and full seq name)...
+##	-	dictionary complete:
+##		PIN:		0106
+##		Seq name:	201002_A00642_0106_BHTJ77DMXX
+##		Indices:	{'D703', 'D710', 'D708', 'D704', 'D702', 'D705', 'D709', 'D707', 'D706'}
+##	-	updating samplesheet...
+##	-	creating features.tsv(s)...
+##
+##	Saving temporary variables to temporary folder...
+##
+###
+################################################################################

@@ -4,7 +4,6 @@ import re
 import pandas as pd
 import numpy as np
 import logging
-from bs4 import BeautifulSoup
 
 # Init
 logging.basicConfig(level=logging.INFO,
@@ -16,106 +15,7 @@ logging.getLogger().addHandler(logging.StreamHandler())
 
 outputDict = dict()
 
-translate_index_10x_singleIndex = {
-    'A1': ['GGTTTACT','CTAAACGG','TCGGCGTC','AACCGTAA'],
-    'A2': ['TTTCATGA','ACGTCCCT','CGCATGTG','GAAGGAAC'],
-    'A3': ['CAGTACTG','AGTAGTCT','GCAGTAGA','TTCCCGAC'],
-    'A4': ['TATGATTC','CCCACAGT','ATGCTGAA','GGATGCCG'],
-    'A5': ['CTAGGTGA','TCGTTCAG','AGCCAATT','GATACGCC'],
-    'A6': ['CGCTATGT','GCTGTCCA','TTGAGATC','AAACCGAG'],
-    'A7': ['ACAGAGGT','TATAGTTG','CGGTCCCA','GTCCTAAC'],
-    'A8': ['GCATCTCC','TGTAAGGT','CTGCGATG','AACGTCAA'],
-    'A9': ['TCTTAAAG','CGAGGCTC','GTCCTTCT','AAGACGGA'],
-    'A10': ['GAAACCCT','TTTCTGTC','CCGTGTGA','AGCGAAAG'],
-    'A11': ['GTCCGGTC','AAGATCAT','CCTGAAGG','TGATCTCA'],
-    'A12': ['AGTGGAAC','GTCTCCTT','TCACATCA','CAGATGGG'],
-    'B1': ['GTAATCTT','TCCGGAAG','AGTTCGGC','CAGCATCA'],
-    'B2': ['TACTCTTC','CCTGTGCG','GGACACGT','ATGAGAAA'],
-    'B3': ['GTGTATTA','TGTGCGGG','ACCATAAC','CAACGCCT'],
-    'B4': ['ACTTCATA','GAGATGAC','TGCCGTGG','CTAGACCT'],
-    'B5': ['AATAATGG','CCAGGGCA','TGCCTCAT','GTGTCATC'],
-    'B6': ['CGTTAATC','GCCACGCT','TTACTCAG','AAGGGTGA'],
-    'B7': ['AAACCTCA','GCCTTGGT','CTGGACTC','TGTAGAAG'],
-    'B8': ['AAAGTGCT','GCTACCTG','TGCTGTAA','CTGCAAGC'],
-    'B9': ['CTGTAACT','TCTAGCGA','AGAGTGTG','GACCCTAC'],
-    'B10': ['ACCGTATG','GATTAGAT','CTGACTGA','TGACGCCC'],
-    'B11': ['GTTCCTCA','AGGTACGC','TAAGTATG','CCCAGGAT'],
-    'B12': ['TACCACCA','CTAAGTTT','GGGTCAAG','ACTGTGGC'],
-    'C1': ['CCACTTAT','AACTGGCG','TTGGCATA','GGTAACGC'],
-    'C2': ['CCTAGACC','ATCTCTGT','TAGCTCTA','GGAGAGAG'],
-    'C3': ['TCAGCCGT','CAGAGGCC','GGTCAATA','ATCTTTAG'],
-    'C4': ['ACAATTCA','TGCGCAGC','CATCACTT','GTGTGGAG'],
-    'C5': ['CGACTTGA','TACAGACT','ATTGCGTG','GCGTACAC'],
-    'C6': ['ATTACTTC','TGCGAACT','GCATTCGG','CAGCGGAA'],
-    'C7': ['GTCTCTCG','AATCTCTC','CGGAGGGA','TCAGAAAT'],
-    'C8': ['GTTGAGAA','AGATCTGG','TCGATACT','CACCGCTC'],
-    'C9': ['GCGCAGAA','ATCTTACC','TATGGTGT','CGAACCTG'],
-    'C10': ['TCTCAGTG','GAGACTAT','CGCTTAGC','ATAGGCCA'],
-    'C11': ['GAGGATCT','AGACCATA','TCCTGCGC','CTTATGAG'],
-    'C12': ['TCTCGTTT','GGCTAGCG','ATGACCGC','CAAGTAAA'],
-    'D1': ['CACTCGGA','GCTGAATT','TGAAGTAC','ATGCTCCG'],
-    'D2': ['TAACAAGG','GGTTCCTC','ATCATGCA','CCGGGTAT'],
-    'D3': ['ACATTACT','TTTGGGTA','CAGCCCAC','GGCAATGG'],
-    'D4': ['CCCTAACA','ATTCCGAT','TGGATTGC','GAAGGCTG'],
-    'D5': ['CTCGTCAC','GATCAGCA','ACAACAGG','TGGTGTTT'],
-    'D6': ['CATGCGAT','TGATATTC','GTGATCGA','ACCCGACG'],
-    'D7': ['ATTTGCTA','TAGACACC','CCACAGGG','GGCGTTAT'],
-    'D8': ['GCAACAAA','TAGTTGTC','CGCCATCG','ATTGGCGT'],
-    'D9': ['AGGAGATG','GATGTGGT','CTACATCC','TCCTCCAA'],
-    'D10': ['CAATACCC','TGTCTATG','ACCACGAA','GTGGGTGT'],
-    'D11': ['CTTTGCGG','TGCACAAA','AAGCAGTC','GCAGTTCT'],
-    'D12': ['GCACAATG','CTTGGTAC','TGCACCGT','AAGTTGCA'],
-    'E1': ['TGGTAAAC','GAAAGGGT','ACTGCTCG','CTCCTCTA'],
-    'E2': ['GTGGTACC','TACTATAG','ACAAGGTA','CGTCCCGT'],
-    'E3': ['AGGTATTG','CTCCTAGT','TCAAGGCC','GATGCCAA'],
-    'E4': ['TTCGCCCT','GGATGGGC','AATCAATG','CCGATTAA'],
-    'E5': ['CATTAGCG','TTCGCTGA','ACAAGAAT','GGGCTCTC'],
-    'E6': ['CTGCGGCT','GACTCAAA','AGAAACTC','TCTGTTGG'],
-    'E7': ['CACGCCTT','GTATATAG','TCTCGGGC','AGGATACA'],
-    'E8': ['ATAGTTAC','TGCTGAGT','CCTACGTA','GAGCACCG'],
-    'E9': ['TTGTTTCC','GGAGGAGG','CCTAACAA','AACCCGTT'],
-    'E10': ['AAATGTGC','GGGCAAAT','TCTATCCG','CTCGCGTA'],
-    'E11': ['AAGCGCTG','CGTTTGAT','GTAGCACA','TCCAATGC'],
-    'E12': ['ACCGGCTC','GAGTTAGT','CGTCCTAG','TTAAAGCA'],
-    'F1': ['GTTGCAGC','TGGAATTA','CAATGGAG','ACCCTCCT'],
-    'F2': ['TTTACATG','CGCGATAC','ACGCGGGT','GAATTCCA'],
-    'F3': ['TTCAGGTG','ACGGACAT','GATCTTGA','CGATCACC'],
-    'F4': ['CCCAATAG','GTGTCGCT','AGAGTCGC','TATCGATA'],
-    'F5': ['GACTACGT','CTAGCGAG','TCTATATC','AGGCGTCA'],
-    'F6': ['CGGAGCAC','GACCTATT','ACTTAGGA','TTAGCTCG'],
-    'F7': ['CGTGCAGA','AACAAGAT','TCGCTTCG','GTATGCTC'],
-    'F8': ['CATGAACA','TCACTCGC','AGCTGGAT','GTGACTTG'],
-    'F9': ['CAAGCTCC','GTTCACTG','TCGTGAAA','AGCATGGT'],
-    'F10': ['GCTTGGCT','AAACAAAC','CGGGCTTA','TTCATCGG'],
-    'F11': ['GCGAGAGT','TACGTTCA','AGTCCCAC','CTATAGTG'],
-    'F12': ['TGATGCAT','GCTACTGA','CACCTGCC','ATGGAATG'],
-    'G1': ['ATGAATCT','GATCTCAG','CCAGGAGC','TGCTCGTA'],
-    'G2': ['TGATTCTA','ACTAGGAG','CAGCCACT','GTCGATGC'],
-    'G3': ['CCTCATTC','AGCATCCG','GTGGCAAT','TAATGGGA'],
-    'G4': ['GCGATGTG','AGATACAA','TTTCCACT','CACGGTGC'],
-    'G5': ['GAGCAAGA','TCTGTGAT','CGCAGTTC','ATATCCCG'],
-    'G6': ['CTGACGCG','GGTCGTAC','TCCTTCTT','AAAGAAGA'],
-    'G7': ['GGTATGCA','CTCGAAAT','ACACCTTC','TAGTGCGG'],
-    'G8': ['TATGAGCT','CCGATAGC','ATACCCAA','GGCTGTTG'],
-    'G9': ['TAGGACGT','ATCCCACA','GGAATGTC','CCTTGTAG'],
-    'G10': ['TCGCCAGC','AATGTTAG','CGATAGCT','GTCAGCTA'],
-    'G11': ['TTATCGTT','AGCAGAGC','CATCTCCA','GCGGATAG'],
-    'G12': ['ATTCTAAG','CCCGATTA','TGGAGGCT','GAATCCGC'],
-    'H1': ['GTATGTCA','TGTCAGAC','CACGTCGG','ACGACATT'],
-    'H2': ['TAATGACC','ATGCCTTA','GCCGAGAT','CGTATCGG'],
-    'H3': ['CCAAGATG','AGGCCCGA','TACGTGAC','GTTTATCT'],
-    'H4': ['GCCATTCC','CAAGAATT','TTGCCGGA','AGTTGCAG'],
-    'H5': ['CCACTACA','GATTCTGG','TGCGGCTT','ATGAAGAC'],
-    'H6': ['TAGGATAA','CCTTTGTC','GTACGCGG','AGCACACT'],
-    'H7': ['AGCTATCA','CATATAAC','TCAGGGTG','GTGCCCGT'],
-    'H8': ['TTGTTGAT','GCTCAACC','CAAAGTGG','AGCGCCTA'],
-    'H9': ['ACACTGTT','CAGGATGG','GGCTGAAC','TTTACCCA'],
-    'H10': ['GTAATTGC','AGTCGCTT','CACGAGAA','TCGTCACG'],
-    'H11': ['GGCGAGTA','ACTTCTAT','CAAATACG','TTGCGCGC'],
-    'H12': ['GACAGCAT','TTTGTACA','AGGCCGTG','CCATATGC']
-}
-
-translate_index_10x_dualIndex = {
+translate_index_10x = {
     'A1': ['GTAACATGCG','AGGTAACACT'], 'A2': ['GTGGATCAAA','CAGGGTTGGC'],
     'A3': ['CACTACGAAA','ATCAGTCTAA'], 'A4': ['CTCTAGCGAG','GATGAAGATA'],
     'A5': ['GTAGCCCTGT','ATAGATGCTC'], 'A6': ['TAACGCGTGA','GAAGTTAGGG'],
@@ -341,59 +241,25 @@ for pin, (indices,seq_name) in pinDict_10x.items():
 logging.info('##\t-\tcreating samplesheet...')
 for pin, (indices,seq_name) in pinDict_10x.items():
 
+    os.system(f'cp {path_templates}/template_samplesheet/samplesheet.csv {path_sample_sheets}/samplesheet_{pin}.csv')
+    seq_year = int(seq_name[0:2])
+
     flowID = seq_name.split('_')[3][1:]
 
-    with open(f'{path_bcls}{seq_name}/RunParameters.xml', 'r') as f:
-        tmp_xml = f.read()
-        tmp_bea = BeautifulSoup(tmp_xml, "xml")
-        
-        tmp_R1 = tmp_bea.find('Read1NumberOfCycles').text
-        tmp_R2 = tmp_bea.find('Read2NumberOfCycles').text
-        tmp_I1 = tmp_bea.find('IndexRead1NumberOfCycles').text
-        tmp_I2 = tmp_bea.find('IndexRead2NumberOfCycles').text
-            
-        if int(tmp_I2) == 0:
-            versionRNA = 'RNA v3.0'
-            prefix = 'SI-GA-'
-        elif int(tmp_I2) > 0:
-            versionRNA = 'RNA v3.1'
-            prefix = 'SI-TT-'
-
-        outputDict['tmp_versionRNA'] = versionRNA
-   
-    if versionRNA == 'RNA v3.0':
-        os.system(f'cp {path_templates}/template_samplesheet/samplesheet_singleIndex.csv {path_sample_sheets}/samplesheet_{pin}.csv') 
-    if versionRNA == 'RNA v3.1':
-        os.system(f'cp {path_templates}/template_samplesheet/samplesheet_dualIndex.csv {path_sample_sheets}/samplesheet_{pin}.csv')
+    if seq_year <= 20:
+        prefix = 'SI-GA-'
+    elif seq_year >= 21:
+        prefix = 'SI-TT-'
 
     for index in indices:
         for ind in index.split(','):
-            # 3.0
-            if versionRNA == 'RNA v3.0':
-                ind_code_1 = translate_index_10x_singleIndex[ind][0]
-                ind_code_2 = translate_index_10x_singleIndex[ind][1]
-                ind_code_3 = translate_index_10x_singleIndex[ind][2]
-                ind_code_4 = translate_index_10x_singleIndex[ind][3]
 
-                ind_1 = prefix + ind + '_1'
-                ind_2 = prefix + ind + '_2'
-                ind_3 = prefix + ind + '_3'
-                ind_4 = prefix + ind + '_4'
+            ind_code_1 = translate_index_10x[ind][0]
+            ind_code_2 = translate_index_10x[ind][1]
+            ind = prefix + ind
 
-                with open(f'{path_sample_sheets}/samplesheet_{pin}.csv', 'a') as w:
-                    w.write(f',{ind_1},{ind_1},{ind_code_1},{flowID}\n')
-                    w.write(f',{ind_2},{ind_2},{ind_code_2},{flowID}\n')
-                    w.write(f',{ind_3},{ind_3},{ind_code_3},{flowID}\n')
-                    w.write(f',{ind_4},{ind_4},{ind_code_4},{flowID}\n')
-
-            # 3.1
-            if versionRNA == 'RNA v3.1':
-                ind_code_1 = translate_index_10x_dualIndex[ind][0]
-                ind_code_2 = translate_index_10x_dualIndex[ind][1]
-                ind = prefix + ind
-
-                with open(f'{path_sample_sheets}/samplesheet_{pin}.csv', 'a') as w:
-                    w.write(f',{ind},{ind},{ind_code_1},{ind_code_2},{flowID},{scopID}\n')
+            with open(f'{path_sample_sheets}/samplesheet_{pin}.csv', 'a') as w:
+                w.write(f',{ind},{ind},{ind_code_1},{ind_code_2},{flowID},{scopID}\n')
 
 bcl_dict_path = open(f'{path_tmp}/pin-data-10x.pkl', 'wb')
 pickle.dump(pinDict_10x, bcl_dict_path)
@@ -434,24 +300,15 @@ if outputDict['tmp_workflow'] == '10x + HTO':
     for pin, (indices,seq_name) in pinDict_hto.items():
        
         flowID = seq_name.split('_')[3][1:]
-####
-
+ 
         for index in indices:
             for ind in index.split(','):
-                # 3.0
-                if versionRNA == 'RNA v3.0':
-                    ind_code = translate_index_hto[ind][0][0:8]
 
-                    with open(f'{path_sample_sheets}/samplesheet_{pin}.csv', 'a') as w:
-                        w.write(f',{ind},{ind},{ind_code},{flowID}\n')
+                ind_code_1 = translate_index_hto[ind][0]
+                ind_code_2 = translate_index_hto[ind][1]
 
-                # 3.1
-                if versionRNA == 'RNA v3.1':
-                    ind_code_1 = translate_index_hto[ind][0]
-                    ind_code_2 = translate_index_hto[ind][1]
-
-                    with open(f'{path_sample_sheets}/samplesheet_{pin}.csv', 'a') as w:
-                        w.write(f',{ind},{ind},{ind_code_1},{ind_code_2},{flowID},{scopID}\n')
+                with open(f'{path_sample_sheets}/samplesheet_{pin}.csv', 'a') as w:
+                    w.write(f',{ind},{ind},{ind_code_1},{ind_code_2},{flowID},{scopID}\n')
 
     bcl_dict_path = open(f'{path_tmp}/pin-data-hto.pkl', 'wb')
     pickle.dump(pinDict_hto, bcl_dict_path)

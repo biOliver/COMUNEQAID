@@ -57,6 +57,8 @@ rule summarize:
         scopID = config['scopID'],
         comID = config['comID'],
         userID = config['userID']
+    conda:
+        'COMUNEQAID_R.yaml'
     log:
         'logs/03_summarize.log'
     script:

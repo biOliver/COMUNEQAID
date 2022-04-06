@@ -48,11 +48,11 @@ rule quant:
     script:
         'code/02_map-quant.py'
 
-rule summarize:
+rule update:
     input:
-        rules.quant.output,
+        rules.quant.output
     output:
-        temp('success/summarize_complete.txt')
+        temp('success/update-pool-table_complete.txt')
     params:
         scopID = config['scopID'],
         comID = config['comID'],
@@ -60,13 +60,55 @@ rule summarize:
     conda:
         'COMUNEQAID_R.yaml'
     log:
-        'logs/03_summarize.log'
+        'logs/03_update-pool-table.log'
     script:
-        'code/03_summarize.R'
+        'code/03_update-pool-table.R'
+
+rule seurat:
+    input:
+        rules.update.output
+    output:
+        temp('success/make-seurat_complete.txt')
+    params:
+        scopID = config['scopID'],
+        comID = config['comID'],
+        userID = config['userID']
+    log:
+        'logs/04_make-seurat.log'
+    script:
+        'code/04_make-seurat.R'
+
+rule aggregate:
+    input:
+        rules.seurat.output
+    output:
+        temp('success/aggregate_complete.txt')
+    params:
+        scopID = config['scopID'],
+        comID = config['comID'],
+        userID = config['userID']
+    log:
+        'logs/05_aggregate.log'
+    script:
+        'code/05_aggregate.R'
+
+rule integrate:
+    input:
+        rules.aggregate.output
+    output:
+        temp('success/integrate_complete.txt')
+    params:
+        scopID = config['scopID'],
+        comID = config['comID'],
+        userID = config['userID']
+    log:
+        'logs/06_integrate.log'
+    script:
+        'code/06_integrate.R'
 
 rule cleanup:
     input:
-        rules.summarize.output
+        rules.integrate.output
     output:
         temp('success/cleanup_complete.txt')
     params:
@@ -74,4 +116,5 @@ rule cleanup:
         comID = config['comID'],
         userID = config['userID']
     script:
-        'code/04_cleanup.py'
+        'code/07_cleanup.py'
+

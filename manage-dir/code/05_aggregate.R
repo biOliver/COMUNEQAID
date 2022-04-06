@@ -2,18 +2,13 @@
 ##########                          Packages                          ##########
 ################################################################################
 suppressPackageStartupMessages({
+  library(foreach)
+  library(parallel)
+  library(doParallel)
   library(Seurat)
-  library(tximport)       
-  library(AnnotationDbi)
-  library(SingleCellExperiment)
-  library(future)
   library(tidyverse)
-  library(scater)
-  library(scran)
   library(sctransform)
   library(DropletUtils)
-  library(rjson)
-  library(jsonlite)
   library(Matrix)
   library(mclust)
   library(kableExtra)
@@ -121,38 +116,6 @@ load_fry <- function(frydir, which_counts = c('U','S','A'), verbose = FALSE, out
   }
 }
 
-annotateMat <- function(mat, orga){
-  
-  if (orga == 'Mouse') {
-    require(org.Mm.eg.db, quietly = T)
-    orgDb <- org.Mm.eg.db
-  }
-  if (orga == 'Human') {
-    require(org.Hs.eg.db, quietly = T)
-    orgDb <- org.Hs.eg.db
-  }
-  if (orga == 'Rat') {
-    require(org.Rn.eg.db, quietly = T)
-    orgDb <- org.Rn.eg.db
-  }
-  if (orga == 'Rhesus') {
-    require(org.Mmu.eg.db, quietly = T)
-    orgDb <- org.Mmu.eg.db
-  }
-  
-  # Annotate genes
-  ann <- suppressMessages(data.frame(mapIds(orgDb,
-                                           sapply(strsplit(rownames(mat), '[.]'), '[', 1),
-                                           column = 'SYMBOL', keytype = 'ENSEMBL')))
-  ann[['ens']] <- as.character(rownames(ann))
-  colnames(ann)[1] <- 'gene'
-  ann[['gene']] <- as.character(ann[['gene']])
-  converted <- ifelse(is.na(ann[['gene']]), ann[['ens']], ann[['gene']])
-  rownames(mat) <- converted
-
-  return(mat)
-}
-
 emptyDropsmodal <- function(q, verbose = T, plot = T, format = 'save', skipModCheck = F){
   
   if (verbose) {
@@ -218,7 +181,7 @@ emptyDropsmodal <- function(q, verbose = T, plot = T, format = 'save', skipModCh
     if (plot) {
       if (format == 'save') {
         png(paste0(dir.outs.qc.plots,'/',tmp.pool[['Index (10x)']],'_KneePlot.png'), width = 1500, height = 500)
-        }
+      }
       par(mfrow = c(1,2))
       r <- rank(-bc.calls[['total']])
       suppressWarnings(plot(r, bc.calls[['total']], log = 'xy', xlab = 'Rank', ylab = 'Total UMI count', main = ''))
@@ -271,100 +234,9 @@ emptyDropsmodal <- function(q, verbose = T, plot = T, format = 'save', skipModCh
     cat('#\n',
         '#\n',
         sep = '')
-    }
+  }
   return(bcs.infl)
 }
-
-emptyDropsManu <- function(q, manualInfl){
-  
-  cat('#\tComputing knee & inflection from barcode ranks..\n',
-      sep = '')
-  sum.col <- Matrix::colSums(q)
-  bc.calls <- barcodeRanks(q)
-  bcs.knee <- names(sum.col)[sum.col > metadata(bc.calls)[['knee']]]
-  bcs.infl <- names(sum.col)[sum.col > metadata(bc.calls)[['inflection']]]
-  bcs.manu <- names(sum.col)[sum.col > manualInfl]
-  cat('#\t-\tcell barcodes above knee\t=\t',length(bcs.knee),'\n',
-      '#\t-\tcell barcodes above inflection\t=\t',length(bcs.infl),'\n',
-      '#\t-\tcell barcodes above manual TH\t=\t',length(bcs.manu),'\n',
-      sep = '')
-  
-  
-  
-  cat('#\t-\tretaining cells above inflection..\n',
-      sep = '')
-  
-  png(paste0(dir.outs.qc.plots,'/',tmp.pool[['Index (10x)']],'_KneePlot.png'), width = 1500, height = 500)
-  par(mfrow = c(1,2))
-  r <- rank(-bc.calls[['total']])
-  suppressWarnings(plot(r, bc.calls[['total']], log = 'xy', xlab = 'Rank', ylab = 'Total gene count', main = ''))
-  abline(h = metadata(bc.calls)[['knee']], col = '#ff6c00', lty = 2, lwd = 3)
-  abline(h = metadata(bc.calls)[['inflection']], col = '#04c2c4', lty = 2, lwd = 3)
-  abline(h = manualInfl, col = '#fa55fa', lty = 2, lwd = 3)
-  abline(v = 40000, col = '#42e373', lty = 2, lwd = 3)
-  abline(v = 80000, col = '#e632b9', lty = 2, lwd = 3)
-  legend('bottomleft', bty = "n",lty = c(2,2,2), lwd = 3, col = c('#ff6c00', '#04c2c4','#fa55fa','#42e373','#e632b9'), 
-         legend = c('knee','inflection','Manual threshold','rank 40k','rank 80k'))
-  hist(log10(bc.calls[['total']]), xlab = 'Log[10] gene count', main = '')
-  abline(v = log10(metadata(bc.calls)[['knee']]), col = '#ff6c00', lty = 2, lwd = 3)
-  abline(v = log10(metadata(bc.calls)[['inflection']]), col = '#04c2c4', lty = 2, lwd = 3)
-  abline(v = log10(manualInfl), col = '#fa55fa', lty = 2, lwd = 3)
-  
-  dev.off()
-  
-  return(bcs.manu)
-}
-
-dub_cutoff <- function(x) {
-  
-  # calculate number of neighbors at each proportion that are doublets
-  data.frame('prop' = x[['proportion_dub_neighbors']]) %>%
-    group_by(prop) %>% 
-    summarize(n = n()) %>% 
-    mutate(pct = n/sum(n)) -> data 
-  # find point at which we gain very few doublets as proportion increases 
-  cut <- data[['prop']][PCAtools::findElbowPoint(variance = sort(data[['n']], decreasing = T)) + 1]
-  vec <- if_else(x[['proportion_dub_neighbors']] <= cut, F, T)
-  return(vec)
-}
-
-add_lane_to_df <- function(i, l){
-  df <- l[[i]]
-  df[['Lane']] <- i
-  return(df)
-}
-
-collapse_demux_results <- function(l){
-  res <- lapply(seq_along(l), add_lane_to_df, l = l)
-  df <- do.call('rbind', res)
-  return(df)
-}
-
-makeUmiPlot <- function(feat.RNA, feat.HTO, CBs.called, title = 'Please give this plot a title...'){
-  
-  common.CBs <- intersect(feat.RNA$CB,feat.HTO$CB)
-  
-  feat.RNA %>% 
-    filter(CB %in% common.CBs) %>% 
-    arrange(CB) -> feat.RNA
-  
-  feat.HTO %>% 
-    filter(CB %in% common.CBs) %>% 
-    arrange(CB) -> feat.HTO
-  
-  p <- ggplot(mapping = aes(x = feat.RNA$DeduplicatedReads,
-                            y = feat.HTO$DeduplicatedReads,
-                            col = ifelse(sort(common.CBs) %in% CBs.called, 'Called', 'Uncalled'))) +
-    geom_point() + scale_x_log10() + scale_y_log10() +
-    labs(x = 'UMIs (RNA)',
-         y = 'UMIs (HTO)',
-         col = '') +
-    theme_minimal() +
-    ggtitle(title)
-  
-  return(p)
-}
-
 
 ################################################################################
 ##########                            Init                            ##########
@@ -376,11 +248,15 @@ user.ID     <- snakemake@params[['userID']]
 
 dir.proj <- paste0('/', file.path('projects',user.ID,'COMUNEQAID','outs',scop.ID))
 dir.outs.qc <- file.path(dir.proj, 'scRNAseq', '00_QC')
-dir.bcls <- file.path(dir.proj, 'scRNAseq', '01_BCL')
 
-pool.table.master <- list()
+cl <- makeCluster(length(com.ID.list)) 
+registerDoParallel(cl)
+foreach(i = seq(com.ID.list),
+        .combine = 'c',
+        .packages = c('Seurat','tidyverse','sctransform','DropletUtils',
+                      'Matrix','mclust','kableExtra')) %dopar% {
 
-for (com.ID in com.ID.list) {
+  com.ID <- com.ID.list[i]
   unique.ID <- paste(scop.ID,com.ID,sep = '_')
   
   dir.data <- paste0('/', file.path('projects',user.ID,'COMUNEQAID','manage-dir','tmp-data',unique.ID))
@@ -388,612 +264,58 @@ for (com.ID in com.ID.list) {
   dir.outs.qc.plots <- file.path(dir.outs.qc, com.ID, 'plots')
   dir.outs.qc.summa <- file.path(dir.outs.qc, com.ID, 'summary')
   
-  dir.outs.indi <- file.path(dir.proj, 'Output', 'data', 'indi', com.ID)
+  dir.outs.indi <- file.path(dir.proj, 'Output', 'data', 'pool-unfiltered', com.ID)
+  dir.outs.comb <- file.path(dir.proj, 'Output', 'data', 'aggregated-filtered', com.ID)
   
-  var.type <- scan(file.path(dir.data,'tmp_seqType.txt'), what = '', sep = '\n', quiet = T)
-  var.orga <- scan(file.path(dir.data,'tmp_organism.txt'), what = '', sep = '\n', quiet = T)
   var.wofl <- scan(file.path(dir.data,'tmp_workflow.txt'), what = '', sep = '\n', quiet = T)
-  
-  ################################################################################
-  ##########                    Update Pool Table                       ##########
-  ################################################################################
-  
-  tmp.seqs.10x  <- list()
-  tmp.seqs.hto  <- list()
-  
-  read.df.all   <- list()
-  
-  if (var.wofl == '10x') {
-    pool.table <- read.csv(file.path(dir.data,'poolTable.csv'),
-                           colClasses = c('BCL.PIN..10x.' = 'character'))
-    colnames(pool.table) <- c('Index (10x)','Lane','Loaded Cells','BCL PIN (10x)')
-    }
-  if (var.wofl == '10x + HTO') {
-    pool.table <- read.csv(file.path(dir.data,'poolTable.csv'),
-                           colClasses = c('BCL.PIN..10x.' = 'character',
-                                          'BCL.PIN..HTO.' = 'character'))
-    colnames(pool.table) <- c('Index (10x)','Index (HTO)','Lane','Loaded Cells','BCL PIN (10x)','BCL PIN (HTO)')
-    
-    pool.table[['SEQ NAMES (HTO)']] <- ''
-    pool.table[['READS (HTO)']] <- 0
-    }
-  
-  pool.table[['SEQ NAMES (10x)']] <- ''
-  pool.table[['READS (10x)']] <- 0
-  
+
+  pool.table <- read.table(file.path(dir.data,'poolTable-updated.csv'))
+  colnames(pool.table) <- c('Index (10x)','Index (HTO)','Lane','Loaded Cells','BCL PIN (10x)','BCL PIN (HTO)',"SEQ NAMES (HTO)","READS (HTO)","SEQ NAMES (10x)","READS (10x)")
+
   n.pools <- dim(pool.table)[1]
   
-  ################################################################################
-  ##########                    Iterate over lane                       ##########
-  ################################################################################
-  
-  for (pool.i in seq(n.pools)) {
-    tmp.pool      <- pool.table[pool.i,]
-    
-    pins.10x      <- str_split(tmp.pool[['BCL PIN (10x)']], ',', simplify = T)[1,]
-    pool.10x      <- str_split(tmp.pool[['Index (10x)']], ',', simplify = T)[1,]
-    seqs.10x      <- listLen(pins.10x)
-    
-    for (pin.i in seq(pins.10x)) {
-      tmp.seq <- grep(list.files(dir.bcls), pattern = pins.10x[pin.i], value = T)
-      seqs.10x[pin.i] <- tmp.seq
-      tmp.seqs.10x <- c(tmp.seqs.10x, tmp.seq)
-      }
-    
-    year <- substr(tmp.seq, start = 1, stop = 2)
-    tmp.seqs.10x.unique <- unique(tmp.seqs.10x)
-    tmp.pool[['SEQ NAMES (10x)']] <- paste(tmp.seqs.10x.unique, collapse = ',')
-    tmp.seqs.all <- tmp.seqs.10x.unique
-    
-    if (var.wofl == '10x + HTO') {
-      pins.hto      <- str_split(tmp.pool[['BCL PIN (HTO)']], ',', simplify = T)[1,]
-      pool.hto      <- str_split(tmp.pool[['Index (HTO)']], ',', simplify = T)[1,]
-      seqs.hto      <- listLen(pins.hto)
-      
-      for (pin.i in seq(pins.hto)) {
-        tmp.seq <- grep(list.files(dir.bcls), pattern = pins.hto[pin.i], value = T)
-        seqs.hto[pin.i] <- tmp.seq
-        tmp.seqs.hto <- c(tmp.seqs.hto,tmp.seq)
-        }
-      
-      tmp.seqs.hto.unique <- unique(tmp.seqs.hto)
-      tmp.pool[['SEQ NAMES (HTO)']] <- paste(tmp.seqs.hto.unique, collapse = ',')
-      tmp.seqs.all <- unique(tmp.seqs.10x.unique,tmp.seqs.hto.unique)
-      }
-    
-    for (bcl in rev(tmp.seqs.all)) {
-      stats.json.path <- file.path(dir.proj,'scRNAseq','02_FASTQ',bcl,'fastq-path/Stats/Stats.json')
-      js <- jsonlite::read_json(stats.json.path, simplifyVector = TRUE)
-      lane_data <- collapse_demux_results(js[['ConversionResults']][['DemuxResults']])
-      lane_data[['Lane']] <- factor(lane_data[['Lane']])
-      known_barcodes <- lane_data[,c('Lane', 'SampleId', 'NumberReads')]
-      
-      if (year <= 20) {
-        known_barcodes[['SampleId']] <- substr(known_barcodes[['SampleId']],1,nchar(known_barcodes[['SampleId']]) - 2)
-        }
-      known_barcodes %>%
-        group_by(SampleId) %>%
-        summarise(Counts = sum(NumberReads)) -> read.df
-      
-      for (pool.10x.i in seq(pool.10x)) {
-        
-        if (year <= 20) {
-          tmp.index <- paste0('SI-GA-', pool.10x[pool.10x.i])
-          tmp.pool[['Index (10x)']] <- paste(paste0('SI-GA-', pool.10x), collapse = ',')
-          }
-        if (year >= 21) {
-          tmp.index <- paste0('SI-TT-', pool.10x[pool.10x.i])
-          tmp.pool[['Index (10x)']] <- paste(paste0('SI-TT-', pool.10x), collapse = ',')
-          }
-        if (tmp.index %in% read.df[['SampleId']]) {
-          tmp.pool[['READS (10x)']] <- tmp.pool[['READS (10x)']] + read.df[read.df[['SampleId']] == tmp.index,] [['Counts']]
-        }
-        }
-      if (var.wofl == '10x + HTO') {
-        for (pool.hto.i in seq(pool.hto)) {
-          tmp.index <- pool.hto[pool.hto.i]
-          
-          if (tmp.index %in% read.df[['SampleId']]) {
-            tmp.pool[['READS (HTO)']] <- tmp.pool[['READS (HTO)']] + read.df[read.df[['SampleId']] == tmp.index,][['Counts']]
-          }
-        }
-      }
-      }
-    pool.table[pool.i,] <- tmp.pool
-  }
-  
-  pool.table.master[[com.ID]] <- pool.table
-
-  
-  nPools        <- dim(pool.table)[1]
-  
-  
-  dir.create(dir.outs.indi, recursive = T, showWarnings = F)
-  dir.create(dir.outs.qc.plots, recursive = T, showWarnings = F)
+  dir.create(dir.outs.comb, recursive = T, showWarnings = F)
   dir.create(dir.outs.qc.summa, recursive = T, showWarnings = F)
-  dir.create(dir.outs.log, recursive = T, showWarnings = F)
   
   ################################################################################
-  ##########                          QC plots                          ##########
+  ##########                 Preparing aggregated output                ##########
   ################################################################################
   
-  # Top n BCs
-  bc.obs.tib <- tibble(
-    'Barcode' = character(),
-    'n_obs_comb' = numeric(),
-    'Seq' = character()
-    )
-  
-  if (var.wofl == '10x') {
-    tmp.seqs.unique <- tmp.seqs.10x.unique
-    }
-  if (var.wofl == '10x + HTO') {
-    tmp.seqs.unique <- unique(tmp.seqs.10x.unique,tmp.seqs.hto.unique)
-    }
-  
-  for (bcl in tmp.seqs.unique) {
-    tmp.tib <- tibble(
-      'Barcode' = character(),
-      'n_obs' = numeric()
-      )
-    
-    stats.json.path <- file.path(dir.proj,'scRNAseq','02_FASTQ',bcl,'fastq-path/Stats/Stats.json')
-    js.nim <- jsonlite::read_json(stats.json.path, simplifyVector = F)
-    
-    for (i in seq(js.nim[['UnknownBarcodes']])) {
-      tmp.bc.list <- js.nim[['UnknownBarcodes']][[i]][['Barcodes']]
-      
-      for (j in seq(tmp.bc.list)) {
-        tmp.tib <- add_row(tmp.tib,
-                           'Barcode' = names(tmp.bc.list[j]),
-                           'n_obs' = tmp.bc.list[[j]]
-        )
-      }
-      }
-    group_by(tmp.tib, Barcode) %>% 
-      summarise(n_obs_comb = sum(n_obs)) %>% 
-      arrange(desc(n_obs_comb)) -> tmp.tib.sum
-    
-    tmp.tib.sum.sub <- tmp.tib.sum[1:10,]
-    
-    p <- ggplot(tmp.tib.sum.sub) +
-      geom_bar(mapping = aes(x = reorder(Barcode, n_obs_comb), y = n_obs_comb),stat = 'identity') +
-      coord_flip() +
-      xlab('Bardcode') +
-      ylab('Count') +
-      ggtitle(paste0('Top 10 unknown barcodes - ',bcl)) +
-      theme_minimal()
-    
-    ggsave(filename = paste0('top10UndeterminedBCs_',bcl,'.png'),
-           plot = p,
-           path = dir.outs.qc.plots,
-           width = 12,
-           height = 8)
-    }
-  
-  read.df.all <- list()
-  
-  for (bcl in tmp.seqs.unique) {
-    stats.json.path <- file.path(dir.proj,'scRNAseq','02_FASTQ',bcl,'fastq-path/Stats/Stats.json')
-    js.sim <- jsonlite::read_json(stats.json.path, simplifyVector = T)
-    lane_data <- collapse_demux_results(js.sim[['ConversionResults']][['DemuxResults']])
-    unde_data <- js.sim[['ConversionResults']][['Undetermined']]
-    lane_data[['Lane']] <- factor(lane_data[['Lane']])
-    known_barcodes <- lane_data[,c('Lane', 'SampleId', 'NumberReads')]
-    
-    if (year <= 20) {
-      known_barcodes[['SampleId']] <- substr(known_barcodes[['SampleId']],1,nchar(known_barcodes[['SampleId']]) - 2)
-      }
-    
-    known_barcodes %>%
-      group_by(SampleId) %>%
-      summarise(Counts = sum(NumberReads)) -> read.df
-    
-    und.df <- list(as.character('Undetermined'),
-                   as.integer(sum(unde_data[['NumberReads']])))
-    read.df <- rbind(read.df,und.df)
-    read.df[['Seq']] <- bcl
-    read.df.all <- rbind(read.df.all,read.df)
-    }
-  
-  p <- ggplot(read.df.all, aes(x = SampleId, y = Counts)) +
-    geom_bar(stat = 'identity') +
-    coord_flip() +
-    facet_wrap(~Seq)
-  
-  ggsave(filename = paste0('readDistribution_bcl2fastq.png'),
-         plot = p,
-         path = dir.outs.qc.plots,
-         width = 12,
-         height = 12)
-  
-  ################################################################################
-  ##########       Processing single nucleus RNA sequencing data        ##########
-  ################################################################################
-  
-  ####################  Start sink  ####################
-  sink.file <- file(file.path(dir.outs.log,'03_summarize.log'), 'a')
+  sink.file <- file(paste0('logs/05_aggregate_',com.ID,'.log'), 'a')
   sink(file = sink.file, append = T,
        type = 'output', split = T)
   cat(as.character(lubridate::now()),'\n', sep = '')
-  
   cat(rep('#',80),'\n',
       '#####                                                                      #####\n',
       '#####                     Summarizing sequencing lanes                     #####\n',
-      '#####                                                     **** / *****     #####\n',
+      '#####                                                   ***** / ******     #####\n',
       rep('#',80),'\n',
       '#####\n',
       '##\n',
-      '##\n',
-      '##\tPROJECT ID:     ',scop.ID,'\n',
-      '##\n',
       '##\tCOM ID:         ',com.ID,'\n',
-      '##\n',
-      '##\tORGANISM:       ',var.orga,'\n',
-      '##\n',
-      '##\tWORKFLOW:       ',var.wofl,'\n',
-      '##\n',
       '##\n',
       '###\n',
       rep('#',80),'\n',
-      sep = '')
-  
-  ####################  Iterate over pools  ####################
-  for (pool.i in seq(n.pools)) {
-    ####################  Prep processing of sample i  ####################
-    tmp.pool        <- pool.table[pool.i,]
-    
-    pool.10x      <- tmp.pool[['Index (10x)']]
-    pins.10x      <- str_split(tmp.pool[['BCL PIN (10x)']], ',')
-    
-    if (var.wofl == '10x + HTO') {
-      pool.hto      <- tmp.pool[['Index (HTO)']]
-      pins.hto      <- str_split(tmp.pool[['BCL PIN (HTO)']], ',')
-      
-      hto.string <- paste0('#\tand pairing with HTO index:\t',pool.hto,'\t\tfrom sequencing run(s):\t',paste(tmp.pool[['SEQ NAMES (HTO)']], collapse = ','),'\n')
-    }else{
-      hto.string <- NULL
-    }
-    
-    cat('##\n',
-        '#\n',
-        '#\n',
-        '#\tProccessing 10x index:\t\t',pool.10x,'\tfrom sequencing run(s):\t',paste(tmp.pool[['SEQ NAMES (10x)']], collapse = ','),'\n',
-        hto.string,
-        '#\n',
-        '#\t(pool ',pool.i,' out of ',nPools,')\n',
-        '#\n',
-        '#\n',
-        '###\n',
-        rep('#',80),'\n',
-        '##\n',
-        '#\n',
-        '#\n',
-        sep = '')
-    
-    
-    
-    mat.files.10x <- file.path(dir.proj,'scRNAseq','03_PipelineOut',com.ID,'10x',pool.10x,'res')
-    if (!file.exists(mat.files.10x)) { stop('Not able to locate quants_mat.gz (gene expression)')}
-    
-    if (var.wofl == '10x + HTO') {
-      mat.files.hto <- file.path(dir.proj,'scRNAseq','03_PipelineOut',com.ID,'hto',pool.hto,'res')
-      if (var.wofl == '10x + HTO') {if (!file.exists(mat.files.hto)) { stop('Not able to locate quants_mat.gz (HTO)')}}
-    }
-    
-    ####################  Read RNA matrices ####################
-    cat('#\tReading count matrices..\n',
-        sep = '')
-    counts.all <- load_fry(frydir = mat.files.10x, output_list = T)
-    counts.rna <- counts.all[['RNA']]
-    counts.spl <- counts.all[['Spliced']]
-    counts.uns <- counts.all[['Unspliced']]
-    
-    if (var.wofl == '10x + HTO') {
-      cat('#\t-\tHTO\n',
-          sep = '')
-      counts.hto <- load_fry(frydir = mat.files.hto)
-    }
-    cat('#\n',
-        '#\n',
-        sep = '')
-
-    ####################  Filter low rank barcodes  ####################
-    cells.keep <- emptyDropsmodal(counts.uns)
-    
-    ############ MAKE UMI PLOT  (MAYBE NEW VERSION) ############
-    if (var.wofl == '10x + HTO') {
-      featDump.10x <- suppressMessages(read_delim(file.path(mat.files.10x,'featureDump.txt'), delim = '\t'))
-      featDump.hto <- suppressMessages(read_delim(file.path(mat.files.hto,'featureDump.txt'), delim = '\t'))
-      
-      p <- makeUmiPlot(feat.RNA = featDump.10x,
-                       feat.HTO = featDump.hto,
-                       CBs.called = cells.keep,
-                       title = paste0('UMI-UMI plot - ', tmp.pool[['Index (10x)']]))
-      
-      ggsave(filename = paste0(tmp.pool[['Index (10x)']],'_UMI-UMI-plot.png'),
-             plot = p,
-             path = dir.outs.qc.plots,
-             width = 8,
-             height = 8)
-    }
-    ############################################################
-    
-    counts.rna <- counts.rna[,cells.keep]
-    counts.spl <- counts.spl[,cells.keep]
-    counts.uns <- counts.uns[,cells.keep]
-    
-    ####################  Annotation  ####################
-    cat('#\tAnnotating..\n', 
-        sep = '')
-    counts.rna <- annotateMat(counts.rna, var.orga)
-    cat('#\t-\tRNA assay\n',
-        sep = '')
-    counts.spl <- annotateMat(counts.spl, var.orga)
-    cat('#\t-\tspliced assay\n',
-        sep = '')
-    counts.uns <- annotateMat(counts.uns, var.orga)
-    cat('#\t-\tunspliced assay\n',
-        '#\n',
-        '#\n',
-        sep = '')
-
-    if (var.wofl == '10x + HTO') {
-      cat('#\tProcessing HTOs..\n',
-          sep = '')
-      
-      cells.keep <- intersect(cells.keep,colnames(counts.hto))
-      cat('#\t-\tretaining ',length(cells.keep),' cells overlapping between RNA & HTO\n',
-          '#\n',
-          '#\n',
-          sep = '')
-      
-      cat('#\tConverting matrices to Seurat object(s)..\n',
-          sep = '')
-      cat('#\t-\tRNA\n')
-      seur.full <- CreateSeuratObject(counts.rna[,cells.keep], project = pool.10x)
-      #seur.full <- CreateSeuratObject(counts.rna[,cells.keep], project = paste0(seqs.hto, collapse = '-'))
-      seur.full[['Index.10x']] <- pool.10x
-      seur.full[['Index.HTO']] <- pool.hto
-      cat('#\t-\tHTO\n')
-      seur.full[['HTO']] <- CreateAssayObject(counts.hto[,cells.keep])
-      cat('#\t-\tSpliced\n')
-      seur.full[['spliced']] <- CreateAssayObject(counts.spl[,cells.keep])
-      cat('#\t-\tUnspliced\n')
-      seur.full[['unspliced']] <- CreateAssayObject(counts.uns[,cells.keep])
-      
-      cat('#\n',
-          '#\n',
-          sep = '')
-      
-      cat('#\tHTO demultiplexing..\n')
-      cat('#\t-\tnormalizing..\n')
-      seur.full <- NormalizeData(seur.full, assay = 'HTO', normalization.method = 'CLR', margin = 1, verbose = F)
-      
-      VariableFeatures(seur.full, assay = 'HTO') <- rownames(seur.full[['HTO']]@counts)
-      
-      cat('#\t-\tscaling..\n',
-          sep = '')
-      seur.full <- ScaleData(seur.full, assay = 'HTO', verbose = F)
-      
-      cat('#\t-\toptimizing HTO-demultiplexing parameters for singlet abundance..\n',
-          sep = '')
-      
-      x <- seur.full
-      thresh <- .95
-      sing.max <- 0
-      
-      for (q in seq(.99, .5, -.01)) {
-        x <- HTODemux(x,
-                      assay = 'HTO',
-                      kfunc = 'kmeans',
-                      positive.quantile = q,
-                      verbose = F)
-        
-        doub.tmp <- table(x[['HTO_classification.global']])['Doublet']
-        nega.tmp <- table(x[['HTO_classification.global']])['Negative']
-        sing.tmp <- table(x[['HTO_classification.global']])['Singlet']
-        
-        if (sing.tmp > sing.max) {
-          doub.max <- doub.tmp
-          nega.max <- nega.tmp
-          sing.max <- sing.tmp
-          thresh <- q
-          }
-      }
-      cat('#\t-\t\tOptimal quantile:\t',thresh,'\n',
-          '#\t-\t\tDoublets:\t\t',doub.max,'\n',
-          '#\t-\t\tNegatives:\t\t',nega.max,'\n',
-          '#\t-\t\tSinglets:\t\t',sing.max,'\n',
-          sep = '')
-      
-      remove(list = c('x'))
-      
-      cat('#\t-\tdemultiplexing HTOs..\n',
-          sep = '')
-      seur.full <- HTODemux(seur.full, assay = 'HTO', kfunc = 'kmeans', positive.quantile = thresh, verbose = F)
-
-      cat('#\t-\tperforming tSNE\n',
-          sep = '')
-      seur.full <- RunTSNE(seur.full,
-                           distance.matrix = as.matrix(dist(t(GetAssayData(object = seur.full, assay = 'HTO')))),
-                           reduction.name = 'hto.tsne')
-
-      cat('#\t-\tcreating plots\n')
-      p <- VlnPlot(seur.full, features = c('nCount_HTO'), log = T)
-      ggsave(filename = paste0(tmp.pool[['Index (10x)']],'_HTO_VlnPlot.png'),
-             plot = p,
-             path = dir.outs.qc.plots,
-             width = 8,
-             height = 8)
-      
-      p <- DimPlot(seur.full, group.by = 'hash.ID') + ggtitle(paste0('HTO demultiplexing (quantile: ',thresh,')'))
-      ggsave(filename = paste0(tmp.pool[['Index (10x)']],'_HTO_tSNEPlot.png'),
-             plot = p,
-             path = dir.outs.qc.plots,
-             width = 8,
-             height = 8)
-      
-      Idents(seur.full) <- 'HTO_maxID'
-      p <- RidgePlot(seur.full, features = rownames(seur.full[['HTO']]@counts), assay = 'HTO', ncol = 1)
-      suppressMessages(
-        ggsave(filename = paste0(tmp.pool[['Index (10x)']],'_HTO_ridgePlot.png'),
-               plot = p,
-               path = dir.outs.qc.plots,
-               width = 8,
-               height = (2*length(table(seur.full$HTO_maxID))))
-      )
-      
-      cat('#\n',
-          '#\n',
-          sep = '')
-
-      cat('#\tConverting matrices to SinglecellExperiment object(s)..\n',
-          sep = '')
-      sce.full <- as.SingleCellExperiment(seur.full)
-      
-      
-      # identify intra-hash doublets
-      cat('#\t-\tidentifying intra-hash doublets','\n', sep = '')
-      sce.full <- logNormCounts(sce.full)
-      dec.hash <- modelGeneVar(sce.full)
-      top.hash <- getTopHVGs(dec.hash, n = 1000)
-      set.seed(1011110)
-      sce.full <- runPCA(sce.full, subset_row = top.hash, ncomponents = 20)
-      sce.full[['doublet']] <- if_else(sce.full[['hash.ID']] == 'Doublet', true = T, false = F)
-      
-      # Recovering the intra-sample doublets:
-      cat('#\t-\trecovering intra-sample doublets\n',
-          sep = '')
-      hashed.doublets <- scDblFinder::recoverDoublets(sce.full,
-                                                      use.dimred = 'PCA',
-                                                      doublets = sce.full[['doublet']],
-                                                      samples = table(sce.full[['hash.ID']]))
-      
-      sce.full[['proportion_dub_neighbors']] <- hashed.doublets[['proportion']]
-      sce.full[['predicted_dub_std']] <- hashed.doublets[['predicted']]
-      sce.full[['predicted_dub_cut']] <- dub_cutoff(sce.full)
-      
-      seur.full[['doublet']] <- sce.full[['doublet']]
-      seur.full[['predicted_dub_std']] <- sce.full[['predicted_dub_std']]
-      seur.full[['predicted_dub_cut']] <- sce.full[['predicted_dub_cut']]
-    }
-    
-    if (var.wofl == '10x') {
-      cat('#\tConverting matrices to Seurat object(s)..\n',
-          sep = '')
-      cat('#\t-\tRNA\n')
-      seur.full <- CreateSeuratObject(counts.rna[,cells.keep], project = pool.10x)
-      #seur.full <- CreateSeuratObject(counts.rna[,cells.keep], project = paste0(seqs., collapse = '-'))
-      seur.full[['Index (10x)']] <- pool.10x
-      cat('#\t-\tSpliced\n')
-      seur.full[['spliced']] <- CreateAssayObject(counts.spl[,cells.keep])
-      cat('#\t-\tUnspliced\n')
-      seur.full[['unspliced']] <- CreateAssayObject(counts.uns[,cells.keep])
-      
-      sce.full <- as.SingleCellExperiment(seur.full)
-      
-      cat('#\t-\tidentifying intra-hash doublets','\n', sep = '')
-      sce.full <- logNormCounts(sce.full)
-      top.rna <- getTopHVGs(modelGeneVar(sce.full))
-      set.seed(1011110)
-      sce.full <- runPCA(sce.full, subset_row = top.rna, n = 1000, ncomponents = 20)
-      
-      dbl.dens <- scDblFinder::computeDoubletDensity(sce.full, subset.row = top.rna,
-                                                     d = ncol(reducedDim(sce.full)))
-      
-      seur.full[['DoubletScore']] <- dbl.dens
-      
-
-    }
-    
-    p <- VlnPlot(seur.full, c('nCount_RNA','nFeature_RNA'), log = T)
-    ggsave(filename = paste0(tmp.pool[['Index (10x)']],'_RNA_VlnPlot.png'),
-           plot = p,
-           path = dir.outs.qc.plots,
-           width = 8,
-           height = 8)
-    
-    p <- FeatureScatter(seur.full, feature1 = 'nCount_RNA', feature2 = 'nFeature_RNA')
-    ggsave(filename = paste0(tmp.pool[['Index (10x)']],'_RNA_FeaScaPlot.png'),
-           plot = p,
-           path = dir.outs.qc.plots,
-           width = 8,
-           height = 8)
-    
-    cat('#\n',
-        '#\n',
-        '#\tSaving object..\n',
-        sep = '')
-    
-    out.name.seur <- paste0(com.ID,'_',tmp.pool[['Index (10x)']],'_seurat.rds')
-    out.path.seur <- file.path(dir.outs.indi,out.name.seur)
-    
-    cat('#\t-\tsaving Seurat object..\n',
-        sep = '')
-    saveRDS(seur.full, out.path.seur)
-    
-    # Memory cleanup
-    remove(
-      list = c('sce.full','seur.full','counts.all','counts.rna','counts.spl','counts.uns')
-      )
-    
-    cat('#\n',
-        '#\n',
-        '###\n',
-        rep('#',80),'\n',
-        sep = '')
-  }
-  sink()
-}
-
-################################################################################
-##########                 Preparing aggregated output                ##########
-################################################################################
-
-for (com.ID in com.ID.list) {
-  
-  unique.ID <- paste(scop.ID,com.ID,sep = '_')
-  
-  dir.outs.comb <- file.path(dir.proj, 'Output', 'data', 'comb', com.ID)
-  
-  dir.create(dir.outs.comb, recursive = T, showWarnings = F)
-  
-  
-  dir.data <- paste0('/', file.path('projects',user.ID,'COMUNEQAID','manage-dir','tmp-data',unique.ID))
-
-  var.type <- scan(file.path(dir.data,'tmp_seqType.txt'), what = '', sep = '\n', quiet = T)
-  var.orga <- scan(file.path(dir.data,'tmp_organism.txt'), what = '', sep = '\n', quiet = T)
-  var.wofl <- scan(file.path(dir.data,'tmp_workflow.txt'), what = '', sep = '\n', quiet = T)
-  
-  
-  pool.table <- pool.table.master[[com.ID]]
-  
-  cat('#####                                                                      #####\n',
-      '#####                     Summarizing sequencing lanes                     #####\n',
-      '#####                                                    ***** / *****     #####\n',
-      rep('#',80),'\n',
-      '#####\n',
+      '####\n',
       '##\n',
-      '##\tCOM ID:         ',com.ID,'\n',
       '##\n',
       sep = '')
   
   cat('#\tReading the following files: \n',
       sep = '')
   
-  indi.files <- grep(list.files(file.path(dir.proj, 'Output', 'data', 'indi', com.ID)), pattern = '_seurat.rds', value = T)
+  indi.files <- grep(list.files(dir.outs.indi), pattern = '_seurat.rds', value = T)
   
   for (fname in indi.files) {
     cat('#\t-\t',fname,'\n',
         sep = '')
   }
-  seur.list <- lapply(file.path(dir.proj, 'Output', 'data', 'indi', com.ID, indi.files), readRDS)
-
+  seur.list <- lapply(file.path(dir.outs.indi, indi.files), readRDS)
+  
   cat('#\n',
       '#\n',
       sep = '')
-
+  
   cat('#\tFinding overlapping genes..\n',
       sep = '')
   
@@ -1010,8 +332,8 @@ for (com.ID in com.ID.list) {
       '#\n',
       '#\n',
       sep = '')
-
-
+  
+  
   # Merge objects
   if (length(indi.files) > 1) {
     seur.comb <- merge(seur.list[[1]],
@@ -1027,22 +349,22 @@ for (com.ID in com.ID.list) {
   num.genes <- length(rownames(seur.comb))
   seur.comb <- seur.comb[!rowsums == 0,]
   num.genes.red <- length(rownames(seur.comb))
-
+  
   cat('#\t-\tthrowing out ',num.genes - num.genes.red,' genes\n',
       '#\t-\tretaining ',num.genes.red,' genes\n',
       '#\n',
       '#\n',
       sep = '')
-
+  
   if (var.wofl == '10x + HTO') {
     Idents(seur.comb) <- 'predicted_dub_std'
     cells.remove.predDubStd <- WhichCells(seur.comb, idents = TRUE)
     Idents(seur.comb) <- 'predicted_dub_cut'
     cells.remove.predDubCut <- WhichCells(seur.comb, idents = TRUE)
-  
+    
     cells.remove.predDub <- union(cells.remove.predDubStd,cells.remove.predDubCut)
     seur.comb[['predicted_dub_all']] <- colnames(seur.comb) %in% cells.remove.predDub
-  
+    
     p <- VlnPlot(seur.comb, 'nCount_RNA', group.by = 'predicted_dub_all', log = T) + ggtitle('Inferential doublets')
     ggsave(filename = paste0(com.ID,'_cells_remove_infDoubl.png'),
            plot = p,
@@ -1050,7 +372,7 @@ for (com.ID in com.ID.list) {
            width = 8,
            height = 8)
   }
-
+  
   cat('#\tRemoving blacklisted cells..\n',
       '#\t(starting with ',length(colnames(seur.comb)),' cells)\n',
       sep = '')
@@ -1067,7 +389,7 @@ for (com.ID in com.ID.list) {
     # remove manually called doublets
     Idents(seur.comb) <- 'predicted_dub_all'
     seur.comb <- subset(seur.comb, idents = FALSE)
-      
+    
     cat('#\t\t(',length(colnames(seur.comb)),' cells remaining)\n',
         sep = '')
   }
@@ -1111,8 +433,8 @@ for (com.ID in com.ID.list) {
   }else {
     p <- DimPlot(seur.comb, group.by = 'orig.ident') + ggtitle(paste0('Samples (',dims,' PCs)'))
   }
-    
-  ggsave(filename = paste0(com.ID,'_RNA_UMAP.png'),
+  
+  ggsave(filename = paste0(com.ID,'_RNA-UMAP.png'),
          plot = p,
          path = dir.outs.qc.plots,
          width = 8,
@@ -1123,10 +445,10 @@ for (com.ID in com.ID.list) {
       '#\n',
       '#\tSaving objects..\n',
       sep = '')
-    
+  
   # Output objects
-  out.name.rna <- paste0(com.ID,'_rna_seurat.rds')
-  out.name.full <- paste0(com.ID,'_full_seurat.rds')
+  out.name.rna <- paste0(com.ID,'_rna-seurat.rds')
+  out.name.full <- paste0(com.ID,'_full-seurat.rds')
   
   out.path.rna <- file.path(dir.outs.comb,out.name.rna)
   out.path.full <- file.path(dir.outs.comb,out.name.full)  
@@ -1147,75 +469,9 @@ for (com.ID in com.ID.list) {
       sep = '')
   
   ################################################################################
-  ##########                          QC plots                          ##########
-  ################################################################################
-  
-  df <- data.frame(Type = character(),
-                   CountSum = double(),
-                   CountPer = double(),
-                   CountTot = double(),
-                   Pool = character())
-
-  for (i in seq(seur.list)) {
-  
-    tmp.pool <- pool.table[i,]
-  
-    pool.10x <- tmp.pool[['Index (10x)']]
-    pool.hto <- tmp.pool[['Index (HTO)']]
-  
-    mat.files.10x <- file.path(dir.proj,'scRNAseq','03_PipelineOut',com.ID,'10x',pool.10x,'res')
-    mat.files.hto <- file.path(dir.proj,'scRNAseq','03_PipelineOut',com.ID,'hto',pool.hto,'res')
-
-    counts.all <- load_fry(frydir = mat.files.10x, output_list = T)
-    counts.spl <- counts.all[['Spliced']]
-    counts.uns <- counts.all[['Unspliced']]
-    #counts.hto <- load_fry(frydir = mat.files.hto)
-
-    tmp.counts.spl.called <- sum(Matrix::colSums(counts.spl[,colnames(seur.list[[i]])]))
-    tmp.counts.spl.unlled <- sum(Matrix::colSums(counts.spl[,colnames(counts.spl) %!in% colnames(seur.list[[i]])]))
-    tmp.counts.uns.called <- sum(Matrix::colSums(counts.uns[,colnames(seur.list[[i]])]))
-    tmp.counts.uns.unlled <- sum(Matrix::colSums(counts.uns[,colnames(counts.uns) %!in% colnames(seur.list[[i]])]))
-    tmp.counts.tot.called <- tmp.counts.spl.called + tmp.counts.uns.called
-    tmp.counts.tot.unlled <- tmp.counts.spl.unlled + tmp.counts.uns.unlled
-  
-    tmp.percen.spl.called <- round(tmp.counts.spl.called/tmp.counts.tot.called*100)
-    tmp.percen.spl.unlled <- round(tmp.counts.spl.unlled/tmp.counts.tot.unlled*100)
-    tmp.percen.uns.called <- round(tmp.counts.uns.called/tmp.counts.tot.called*100)
-    tmp.percen.uns.unlled <- round(tmp.counts.uns.unlled/tmp.counts.tot.unlled*100)
-  
-    tmp.df <- data.frame(ReadType = c('Spliced','Unspliced','Spliced','Unspliced'),
-                         CellType = c('Called','Called','Uncalled','Uncalled'),
-                         CountSum = c(tmp.counts.spl.called,tmp.counts.uns.called,tmp.counts.spl.unlled,tmp.counts.uns.unlled),
-                         CountPer = c(tmp.percen.spl.called,tmp.percen.uns.called,tmp.percen.spl.unlled,tmp.percen.uns.unlled),
-                         CountTot = c(tmp.counts.tot.called,tmp.counts.tot.called,tmp.counts.tot.unlled,tmp.counts.tot.unlled),
-                         Pool = c(pool.10x,pool.10x,pool.10x,pool.10x))
-  
-    df <- rbind(df,tmp.df)
-  
-  }
-
-  df[['Labelpos']] <- ifelse(df[['ReadType']] == 'Unspliced',
-                             df[['CountSum']]/2, df[['CountTot']] - df[['CountSum']]/2)
-
-  p <- ggplot(data = df, aes(x = Pool, y = CountSum, fill = ReadType)) +
-    geom_bar(stat = 'identity') + 
-    geom_text(aes(label = paste0(CountPer,'%'),y = Labelpos),size = 3) +
-    coord_flip() + ggtitle('Spliced/Unspliced - Counts') +
-    xlab('Index') + ylab('Summed counts') + scale_fill_discrete(name = 'Read type') +
-    facet_wrap(~CellType, nrow = 2) +
-    theme_minimal()
-
-  ggsave(filename = paste0('readDistribution_alevin.png'),
-         plot = p,
-         path = dir.outs.qc.plots,
-         width = 12,
-         height = 8)
-
-
-  ################################################################################
   ##########                        Create HTML                         ##########
   ################################################################################
-
+  
   cat('#\tCreating summary..\n',
       sep = '')
   
@@ -1226,24 +482,22 @@ for (com.ID in com.ID.list) {
   }else{
     seur.comb <- seur.list[[1]]
   }
-
-  remove(list = c('seur.list'))
-
+  
   # Filter genes with no detection
   rowsums <- Matrix::rowSums(seur.comb[['RNA']]@counts)
   num.genes <- length(rownames(seur.comb))
   seur.comb <- seur.comb[!rowsums == 0,]
   num.genes.red <- length(rownames(seur.comb))
-    
+  
   if (var.wofl == '10x + HTO') {
     stat.tib.10x <- tibble(
       # Raw - reads from fastqs
       'Cells (Loaded)' = double(),
       'Reads (Raw)' = double(),
-        
+      
       # Barcode ranks plot
       'Plot (Barcode Ranks)' = ' ',
-        
+      
       # Called cells - (Barcode ranks)
       'Cells (Called)' = double(),  'Cells % Loaded (Called)' = character(),
       'Reads (Called)' = double(),  'Reads % Raw (Called)' = character(), 'Reads/Cell (Called)' = double(),
@@ -1258,7 +512,7 @@ for (com.ID in com.ID.list) {
       'Cells (intra-HTO)' = double(),  'Cells % inter-HTO (intra-HTO)' = character(),
       'Reads (intra-HTO)' = double(),  'Reads % inter-HTO (intra-HTO)' = character(), 'Reads/Cell (intra-HTO)' = double(),
       'UMIs (intra-HTO)' = double(), 'UMIs/Cell (intra-HTO)' = double()
-      )
+    )
     
     
     knee.df.10x.x <- list()
@@ -1273,7 +527,7 @@ for (com.ID in com.ID.list) {
       # UMI vs UMI plot
       'Plot (UMIvsUMI) - cal' = ' ',
       'Plot (UMIvsUMI) - unc' = ' ',
-        
+      
       # Called cells - (Barcode ranks)
       'Cells (Called)' = double(),  'Cells % Loaded (Called)' = character(),
       'Reads (Called)' = double(),  'Reads % Raw (Called)' = character(), 'Reads/Cell (Called)' = double(),
@@ -1292,62 +546,62 @@ for (com.ID in com.ID.list) {
       'Reads - RNA (Negative %)' = character(),    
       'Reads - RNA (Doublet %)' = character(),    
       'Reads - RNA (Singlet %)' = character()
-      )
-      
+    )
+    
     umi.df.hto.cal.x <- list()
     umi.df.hto.cal.y <- list()
     umi.df.hto.unc.x <- list()
     umi.df.hto.unc.y <- list()
-     
+    
     for (pool.i in seq(n.pools)) {
       tmp.pool      <- pool.table[pool.i,]
-  
-        #pool.10x <- pool.table[i,][['Pool..10x.']]
-        #pool.hto <- pool.table[i,][['Pool..HTO.']]
-        #load.cells <- pool.table[i,][['Loaded.Cells']]
-        
-        
-        #pins.10x      <- str_split(tmp.pool[['BCL PIN (10x)']], ',', simplify = T)[1,]
-        
+      
+      #pool.10x <- pool.table[i,][['Pool..10x.']]
+      #pool.hto <- pool.table[i,][['Pool..HTO.']]
+      #load.cells <- pool.table[i,][['Loaded.Cells']]
+      
+      
+      #pins.10x      <- str_split(tmp.pool[['BCL PIN (10x)']], ',', simplify = T)[1,]
+      
       pool.10x      <- str_split(tmp.pool[['Index (10x)']], ',', simplify = T)[1,]
       pool.hto      <- str_split(tmp.pool[['Index (HTO)']], ',', simplify = T)[1,]
-        
-        #seqs.10x      <- listLen(pins.10x)
-        
       
-        # Init
+      #seqs.10x      <- listLen(pins.10x)
+      
+      
+      # Init
       stats.10x <- list()
       stats.hto <- list()
       
       mat.files.10x <- file.path(dir.proj,'scRNAseq','03_PipelineOut',com.ID,'10x',pool.10x,'res')
       mat.files.hto <- file.path(dir.proj,'scRNAseq','03_PipelineOut',com.ID,'hto',pool.hto,'res')
-        
+      
       # Collect barcode ranks data
       counts.10x <- load_fry(frydir = mat.files.10x, which_counts = c('U'))
       bc.calls.10x <- barcodeRanks(counts.10x)
       uniq.10x <- !duplicated(bc.calls.10x[['rank']])
-        
+      
       knee.df.10x.x[[pool.10x]] <- log(bc.calls.10x[['rank']][uniq.10x])
       knee.df.10x.y[[pool.10x]] <- log(bc.calls.10x[['total']][uniq.10x])
-        
+      
       knee.df.10x.x[[pool.10x]][is.infinite(knee.df.10x.x[[pool.10x]])] <- NA
       knee.df.10x.y[[pool.10x]][is.infinite(knee.df.10x.y[[pool.10x]])] <- NA
-        
+      
       stats.10x[['Plot (Barcode Ranks)']] <- ' '
-        
-        ###
-        
+      
+      ###
+      
       cells.ranks <- emptyDropsmodal(q = counts.10x,
                                      verbose = F,
                                      plot = F,
                                      format = 'noSave', skipModCheck = T)
-        
-        ###
-        
+      
+      ###
+      
       # Read featureDump.txt
       featDump.10x <- suppressMessages(read_delim(file.path(mat.files.10x,'featureDump.txt'), delim = '\t'))
       featDump.hto <- suppressMessages(read_delim(file.path(mat.files.hto,'featureDump.txt'), delim = '\t'))
-        
+      
       # Collect UMI vs UMI data
       common.CBs <- intersect(featDump.10x[['CB']],featDump.hto[['CB']])
       
@@ -1389,7 +643,7 @@ for (com.ID in com.ID.list) {
       #stats.hto[['Reads (Raw)']] <- read.df.hto[read.df.hto[['SampleId']] == pool.hto,][[2]]
       stats.10x[['Reads (Raw)']] <- tmp.pool[['READS (10x)']]
       stats.hto[['Reads (Raw)']] <- tmp.pool[['READS (HTO)']]
-  
+      
       #stats.10x[['Cells (Loaded)']] <- load.cells
       #stats.hto[['Cells (Loaded)']] <- load.cells
       stats.10x[['Cells (Loaded)']] <- tmp.pool[['Loaded Cells']]
@@ -1456,10 +710,10 @@ for (com.ID in com.ID.list) {
       stats.10x[['Reads (inter-HTO)']] <- sum(featDump.10x[featDump.10x[['CB']] %in% cells.singl.inter,][['MappedReads']])
       stats.10x[['Reads % Called (inter-HTO)']] <- paste(as.character(round(stats.10x[['Reads (inter-HTO)']] / stats.10x[['Reads (Called)']] * 100, 1)),'%')
       stats.10x[['Reads/Cell (inter-HTO)']] <- round(median(featDump.10x[featDump.10x[['CB']] %in% cells.singl.inter,][['MappedReads']]))
-    
+      
       stats.10x[['UMIs (inter-HTO)']] <- round(sum(featDump.10x[featDump.10x[['CB']] %in% cells.singl.inter,][['DeduplicatedReads']]))
       stats.10x[['UMIs/Cell (inter-HTO)']] <- round(median(featDump.10x[featDump.10x[['CB']] %in% cells.singl.inter,][['DeduplicatedReads']]))
-    
+      
       # HTO
       stats.hto[['Cells (inter-HTO)']] <- length(unique(featDump.hto[featDump.hto[['CB']] %in% cells.singl.inter,][['CB']]))
       stats.hto[['Cells % Called (inter-HTO)']] <- paste(as.character(round(stats.hto[['Cells (inter-HTO)']] / stats.hto[['Cells (Called)']] * 100, 1)),'%')
@@ -1496,19 +750,19 @@ for (com.ID in com.ID.list) {
       
       stats.10x[['UMIs (intra-HTO)']] <- round(sum(featDump.10x[featDump.10x[['CB']] %in% cells.singl.intra,][['DeduplicatedReads']]))
       stats.10x[['UMIs/Cell (intra-HTO)']] <- round(median(featDump.10x[featDump.10x[['CB']] %in% cells.singl.intra,][['DeduplicatedReads']]))
-  
+      
       # Bind to collective df
       stat.tib.10x <- bind_rows(stat.tib.10x,stats.10x)
       stat.tib.hto <- bind_rows(stat.tib.hto,stats.hto)
     }
-      
-  
+    
+    
     stat.df.10x <- as.data.frame(stat.tib.10x)
     rownames(stat.df.10x) <- pool.table[['Index (10x)']]
-      
+    
     tmp.df.10x <- stat.df.10x
-      
-      
+    
+    
     tmp.df.10x %>%
       kbl(escape = F, col.names = c('','','',
                                     'remaining','% loaded','remaining','% sequenced','per cell','remaining','per cell',
@@ -1557,9 +811,9 @@ for (com.ID in com.ID.list) {
     # HTO time
     stat.df.hto <- as.data.frame(stat.tib.hto)
     rownames(stat.df.hto) <- paste0(pool.table[['Index (HTO)']],' (',pool.table[['Index (10x)']],')')
-  
+    
     tmp.df.hto <- stat.df.hto
-  
+    
     
     tmp.df.hto %>%
       kbl(escape = F, col.names = c('','','filtered CBs','called CBs',
@@ -1611,7 +865,7 @@ for (com.ID in com.ID.list) {
                        bold = T) %>% 
       save_kable(file = file.path(dir.outs.qc.summa,'hto_summary.html'), self_contained = T)
   }
-    
+  
   if (var.wofl == '10x') {
     stat.tib.10x <- tibble(
       # Raw - reads from fastqs
@@ -1625,7 +879,7 @@ for (com.ID in com.ID.list) {
       'Cells (Called)' = double(),  'Cells % Loaded (Called)' = character(),
       'Reads (Called)' = double(),  'Reads % Raw (Called)' = character(), 'Reads/Cell (Called)' = double(),
       'UMIs (Called)' = double(), 'UMIs/Cell (Called)' = double(),
-      )
+    )
     
     knee.df.10x.x <- list()
     knee.df.10x.y <- list()
@@ -1677,7 +931,7 @@ for (com.ID in com.ID.list) {
       
       stats.10x[['UMIs (Called)']] <- round(sum(featDump.10x[featDump.10x[['CB']] %in% cells.ranks,][['DeduplicatedReads']]))
       stats.10x[['UMIs/Cell (Called)']] <- round(median(featDump.10x[featDump.10x[['CB']] %in% cells.ranks,][['DeduplicatedReads']]))
-  
+      
       # Bind to collective df
       stat.tib.10x <- bind_rows(stat.tib.10x,stats.10x)
     }
@@ -1727,90 +981,76 @@ for (com.ID in com.ID.list) {
       save_kable(file = file.path(dir.outs.qc.summa,'rna_summary.html'), self_contained = T)
   }
   
+  ################################################################################
+  ##########                          QC plots                          ##########
+  ################################################################################
+  #remove(list = c('seur.list'))
+  df <- data.frame(Type = character(),
+                   CountSum = double(),
+                   CountPer = double(),
+                   CountTot = double(),
+                   Pool = character())
+  
+  for (i in seq(seur.list)) {
+    
+    tmp.pool <- pool.table[i,]
+    
+    pool.10x <- tmp.pool[['Index (10x)']]
+    pool.hto <- tmp.pool[['Index (HTO)']]
+    
+    mat.files.10x <- file.path(dir.proj,'scRNAseq','03_PipelineOut',com.ID,'10x',pool.10x,'res')
+    mat.files.hto <- file.path(dir.proj,'scRNAseq','03_PipelineOut',com.ID,'hto',pool.hto,'res')
+    
+    counts.all <- load_fry(frydir = mat.files.10x, output_list = T)
+    counts.spl <- counts.all[['Spliced']]
+    counts.uns <- counts.all[['Unspliced']]
+    #counts.hto <- load_fry(frydir = mat.files.hto)
+    
+    tmp.counts.spl.called <- sum(Matrix::colSums(counts.spl[,colnames(seur.list[[i]])]))
+    tmp.counts.spl.unlled <- sum(Matrix::colSums(counts.spl[,colnames(counts.spl) %!in% colnames(seur.list[[i]])]))
+    tmp.counts.uns.called <- sum(Matrix::colSums(counts.uns[,colnames(seur.list[[i]])]))
+    tmp.counts.uns.unlled <- sum(Matrix::colSums(counts.uns[,colnames(counts.uns) %!in% colnames(seur.list[[i]])]))
+    tmp.counts.tot.called <- tmp.counts.spl.called + tmp.counts.uns.called
+    tmp.counts.tot.unlled <- tmp.counts.spl.unlled + tmp.counts.uns.unlled
+    
+    tmp.percen.spl.called <- round(tmp.counts.spl.called/tmp.counts.tot.called*100)
+    tmp.percen.spl.unlled <- round(tmp.counts.spl.unlled/tmp.counts.tot.unlled*100)
+    tmp.percen.uns.called <- round(tmp.counts.uns.called/tmp.counts.tot.called*100)
+    tmp.percen.uns.unlled <- round(tmp.counts.uns.unlled/tmp.counts.tot.unlled*100)
+    
+    tmp.df <- data.frame(ReadType = c('Spliced','Unspliced','Spliced','Unspliced'),
+                         CellType = c('Called','Called','Uncalled','Uncalled'),
+                         CountSum = c(tmp.counts.spl.called,tmp.counts.uns.called,tmp.counts.spl.unlled,tmp.counts.uns.unlled),
+                         CountPer = c(tmp.percen.spl.called,tmp.percen.uns.called,tmp.percen.spl.unlled,tmp.percen.uns.unlled),
+                         CountTot = c(tmp.counts.tot.called,tmp.counts.tot.called,tmp.counts.tot.unlled,tmp.counts.tot.unlled),
+                         Pool = c(pool.10x,pool.10x,pool.10x,pool.10x))
+    
+    df <- rbind(df,tmp.df)
+    
+  }
+  
+  df[['Labelpos']] <- ifelse(df[['ReadType']] == 'Unspliced',
+                             df[['CountSum']]/2, df[['CountTot']] - df[['CountSum']]/2)
+  
+  p <- ggplot(data = df, aes(x = Pool, y = CountSum, fill = ReadType)) +
+    geom_bar(stat = 'identity') + 
+    geom_text(aes(label = paste0(CountPer,'%'),y = Labelpos),size = 3) +
+    coord_flip() + ggtitle('Spliced/Unspliced - Counts') +
+    xlab('Index') + ylab('Summed counts') + scale_fill_discrete(name = 'Read type') +
+    facet_wrap(~CellType, nrow = 2) +
+    theme_minimal()
+  
+  ggsave(filename = paste0('readDistribution_alevin.png'),
+         plot = p,
+         path = dir.outs.qc.plots,
+         width = 12,
+         height = 8)
+  
   cat('#\n',
       '#\n',
       '###\n',
       rep('#',80),'\n',
       sep = '')
 }
-
-#Need sink in aggregate
-    #sink()
-
-################################################################################
-##########                         Integrate                          ##########
-################################################################################
-
-seur.list <- list()
-
-cat('#\tReading the following files: \n',
-    sep = '')
-for (com.ID_i in seq(com.ID.list)) {
-  
-  com.ID <- com.ID.list[[com.ID_i]]
-  
-  dir.outs.comb <- file.path(dir.proj, 'Output', 'data', 'comb', com.ID)
-  
-  comb.files <- grep(list.files(file.path(dir.outs.comb)), pattern = 'rna_seurat.rds', value = T)
-  
-  for (fname in comb.files) {
-    cat('#\t-\t',fname,'\n',
-        sep = '')
-  }
-  seur.list[com.ID_i] <- lapply(file.path(dir.outs.comb, comb.files), readRDS)
-}
-
-# Merge objects
-if (length(seur.list) > 1) {
-  seur.comb <- merge(seur.list[[1]],
-                     seur.list[2:length(seur.list)])
-}else {
-  seur.comb <- seur.list[[1]]
-}
-
-seur.comb.list <- SplitObject(seur.comb, split.by = 'orig.ident')
-seur.comb.list <- lapply(X = seur.comb.list, FUN = SCTransform)
-features <- SelectIntegrationFeatures(object.list = seur.comb.list, nfeatures = 3000)
-seur.comb.list <- PrepSCTIntegration(object.list = seur.comb.list, anchor.features = features)
-
-seur.comb.anchors <- FindIntegrationAnchors(object.list = seur.comb.list, normalization.method = "SCT",
-                                            anchor.features = features)
-seur.comb.sct <- IntegrateData(anchorset = seur.comb.anchors, normalization.method = "SCT")
-seur.comb.sct <- RunPCA(seur.comb.sct, verbose = FALSE)
-dims <- round(
-  as.numeric(
-    intrinsicDimension::maxLikGlobalDimEst(
-      data = seur.comb.sct@reductions[['pca']][, 1:50],
-      k = 20)))
-seur.comb.sct <- RunUMAP(seur.comb.sct, reduction = "pca", dims = 1:dims)
-
-  
-atlas.ID <- paste0(com.ID.list, collapse = '_')
-  
-dir.outs.qc.plots <- file.path(dir.outs.qc, atlas.ID, 'plots')
-dir.outs.qc.summa <- file.path(dir.outs.qc, atlas.ID, 'summary')
-dir.outs.atlas <- file.path(dir.proj, 'Output', 'data', 'integrate', atlas.ID)
-  
-dir.create(dir.outs.qc.plots, recursive = T, showWarnings = F)
-dir.create(dir.outs.qc.summa, recursive = T, showWarnings = F)
-dir.create(dir.outs.atlas, recursive = T, showWarnings = F)
-
-# Output objects
-out.name.atl <- paste0(atlas.ID,'_atl_seurat.rds')
-
-out.path.atl <- file.path(dir.outs.atlas,out.name.atl)
-
-cat('#\t-\tsaving atlas\n',
-    sep = '')
-saveRDS(seur.comb.sct, out.path.atl)
-
-cat('#\n',
-    '#\n',
-    sep = '')
-################################################################################
-################################################################################
-################################################################################
-
-
 
 file.create(snakemake@output[[1]])

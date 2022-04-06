@@ -41,6 +41,8 @@ rule quant:
         scopID = config['scopID'],
         comID = config['comID'],
         userID = config['userID']
+    conda:
+        'COMUNEQAID_R.yaml'
     log:
         'logs/02_map-quant.log'
     threads:
@@ -73,6 +75,8 @@ rule seurat:
         scopID = config['scopID'],
         comID = config['comID'],
         userID = config['userID']
+    conda:
+        'COMUNEQAID_R.yaml'
     log:
         'logs/04_make-seurat.log'
     script:
@@ -87,6 +91,8 @@ rule aggregate:
         scopID = config['scopID'],
         comID = config['comID'],
         userID = config['userID']
+    conda:
+        'COMUNEQAID_R.yaml'
     log:
         'logs/05_aggregate.log'
     script:

@@ -92,23 +92,24 @@ rule aggregate:
     script:
         'code/05_aggregate.R'
 
-rule integrate:
-    input:
-        rules.aggregate.output
-    output:
-        temp('success/integrate_complete.txt')
-    params:
-        scopID = config['scopID'],
-        comID = config['comID'],
-        userID = config['userID']
-    log:
-        'logs/06_integrate.log'
-    script:
-        'code/06_integrate.R'
+#rule integrate:
+#    input:
+#        rules.aggregate.output
+#    output:
+#        temp('success/integrate_complete.txt')
+#    params:
+#        scopID = config['scopID'],
+#        comID = config['comID'],
+#        userID = config['userID']
+#    log:
+#        'logs/06_integrate.log'
+#    script:
+#        'code/06_integrate.R'
 
 rule cleanup:
     input:
-        rules.integrate.output
+        #rules.integrate.output
+        rules.aggregate.output
     output:
         temp('success/cleanup_complete.txt')
     params:

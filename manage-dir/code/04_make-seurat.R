@@ -378,7 +378,14 @@ for (com.ID in com.ID.list) {
   var.wofl <- scan(file.path(dir.data,'tmp_workflow.txt'), what = '', sep = '\n', quiet = T)
   
   pool.table <- read.table(file.path(dir.data,'poolTable-updated.csv'))
-  colnames(pool.table) <- c('Index (10x)','Index (HTO)','Lane','Loaded Cells','BCL PIN (10x)','BCL PIN (HTO)',"SEQ NAMES (HTO)","READS (HTO)","SEQ NAMES (10x)","READS (10x)")
+  
+  if (var.wofl == '10x') {
+    colnames(pool.table) <- c('Index (10x)','Lane','Loaded Cells','BCL PIN (10x)',"SEQ NAMES (10x)","READS (10x)")
+  }
+  if (var.wofl == '10x + HTO') {
+    colnames(pool.table) <- c('Index (10x)','Index (HTO)','Lane','Loaded Cells','BCL PIN (10x)','BCL PIN (HTO)',"SEQ NAMES (HTO)","READS (HTO)","SEQ NAMES (10x)","READS (10x)")
+  }
+  
   
   nPools <- dim(pool.table)[1]
   

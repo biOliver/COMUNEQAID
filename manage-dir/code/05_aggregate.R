@@ -961,7 +961,6 @@ foreach(i = seq(com.ID.list),
                                        height = 250,
                                        type = "p")) %>% 
       column_spec(column = c(5,6,7,8,9,10,11), color = '#ffbd69') %>% 
-      #column_spec(column = c(12,13,14,15,16,17,18), color = '#adffff') %>% 
       add_header_above(c(
         ' ' = 1,
         'Cells' = 1,
@@ -996,46 +995,114 @@ foreach(i = seq(com.ID.list),
                    CountTot = double(),
                    Pool = character())
   
+  df.hto <- data.frame(Library = character(),
+                       Class = character(),
+                       CountPer = double(),
+                       Labelpos = double(),
+                       Pool = character())
+  
   for (i in seq(seur.list)) {
     
     tmp.pool <- pool.table[i,]
     
     pool.10x <- tmp.pool[['Index (10x)']]
-    pool.hto <- tmp.pool[['Index (HTO)']]
     
     mat.files.10x <- file.path(dir.proj,'scRNAseq','03_PipelineOut',com.ID,'10x',pool.10x,'res')
-    mat.files.hto <- file.path(dir.proj,'scRNAseq','03_PipelineOut',com.ID,'hto',pool.hto,'res')
     
     counts.all <- load_fry(frydir = mat.files.10x, output_list = T)
     counts.spl <- counts.all[['Spliced']]
     counts.uns <- counts.all[['Unspliced']]
-    #counts.hto <- load_fry(frydir = mat.files.hto)
     
     tmp.counts.spl.called <- sum(Matrix::colSums(counts.spl[,colnames(seur.list[[i]])]))
-    tmp.counts.spl.unlled <- sum(Matrix::colSums(counts.spl[,colnames(counts.spl) %!in% colnames(seur.list[[i]])]))
+    tmp.counts.spl.uncalled <- sum(Matrix::colSums(counts.spl[,colnames(counts.spl) %!in% colnames(seur.list[[i]])]))
     tmp.counts.uns.called <- sum(Matrix::colSums(counts.uns[,colnames(seur.list[[i]])]))
-    tmp.counts.uns.unlled <- sum(Matrix::colSums(counts.uns[,colnames(counts.uns) %!in% colnames(seur.list[[i]])]))
+    tmp.counts.uns.uncalled <- sum(Matrix::colSums(counts.uns[,colnames(counts.uns) %!in% colnames(seur.list[[i]])]))
     tmp.counts.tot.called <- tmp.counts.spl.called + tmp.counts.uns.called
-    tmp.counts.tot.unlled <- tmp.counts.spl.unlled + tmp.counts.uns.unlled
+    tmp.counts.tot.uncalled <- tmp.counts.spl.uncalled + tmp.counts.uns.uncalled
     
     tmp.percen.spl.called <- round(tmp.counts.spl.called/tmp.counts.tot.called*100)
-    tmp.percen.spl.unlled <- round(tmp.counts.spl.unlled/tmp.counts.tot.unlled*100)
+    tmp.percen.spl.uncalled <- round(tmp.counts.spl.uncalled/tmp.counts.tot.uncalled*100)
     tmp.percen.uns.called <- round(tmp.counts.uns.called/tmp.counts.tot.called*100)
-    tmp.percen.uns.unlled <- round(tmp.counts.uns.unlled/tmp.counts.tot.unlled*100)
+    tmp.percen.uns.uncalled <- round(tmp.counts.uns.uncalled/tmp.counts.tot.uncalled*100)
     
     tmp.df <- data.frame(ReadType = c('Spliced','Unspliced','Spliced','Unspliced'),
                          CellType = c('Called','Called','Uncalled','Uncalled'),
-                         CountSum = c(tmp.counts.spl.called,tmp.counts.uns.called,tmp.counts.spl.unlled,tmp.counts.uns.unlled),
-                         CountPer = c(tmp.percen.spl.called,tmp.percen.uns.called,tmp.percen.spl.unlled,tmp.percen.uns.unlled),
-                         CountTot = c(tmp.counts.tot.called,tmp.counts.tot.called,tmp.counts.tot.unlled,tmp.counts.tot.unlled),
+                         CountSum = c(tmp.counts.spl.called,tmp.counts.uns.called,tmp.counts.spl.uncalled,tmp.counts.uns.uncalled),
+                         CountPer = c(tmp.percen.spl.called,tmp.percen.uns.called,tmp.percen.spl.uncalled,tmp.percen.uns.uncalled),
+                         CountTot = c(tmp.counts.tot.called,tmp.counts.tot.called,tmp.counts.tot.uncalled,tmp.counts.tot.uncalled),
                          Pool = c(pool.10x,pool.10x,pool.10x,pool.10x))
     
     df <- rbind(df,tmp.df)
     
+    if (var.wofl == '10x + HTO') {
+      pool.hto <- tmp.pool[['Index (HTO)']]
+      mat.files.hto <- file.path(dir.proj,'scRNAseq','03_PipelineOut',com.ID,'hto',pool.hto,'res')
+      counts.hto <- load_fry(frydir = mat.files.hto)
+      counts.rna <- counts.all[['RNA']]
+      
+      Idents(seur.list[[i]]) <- 'HTO_classification.global'
+      seur.comb.neg <- subset(seur.list[[i]], idents = 'Negative')
+      seur.comb.sub <- subset(seur.list[[i]], idents = 'Singlet')
+      seur.comb.dou <- subset(seur.list[[i]], idents = 'Doublet')
+      
+      bcs.negative <- sapply(strsplit(colnames(seur.comb.neg),'[_]'), '[', 1)
+      bcs.singlet <- sapply(strsplit(colnames(seur.comb.sub),'[_]'), '[', 1)
+      bcs.doublet <- sapply(strsplit(colnames(seur.comb.dou),'[_]'), '[', 1)
+      
+      tmp.counts.rna.called <- sum(Matrix::colSums(counts.rna[,colnames(seur.list[[i]])]))
+      tmp.counts.rna.uncalled <- sum(Matrix::colSums(counts.rna[,colnames(counts.rna) %!in% colnames(seur.list[[i]])]))
+      tmp.counts.rna.negative <- sum(Matrix::colSums(counts.rna[,bcs.negative]))
+      tmp.counts.rna.singlet <- sum(Matrix::colSums(counts.rna[,bcs.singlet]))
+      tmp.counts.rna.doublet <- sum(Matrix::colSums(counts.rna[,bcs.doublet]))
+      tmp.counts.rna.total <- tmp.counts.rna.called + tmp.counts.rna.uncalled
+      
+      tmp.counts.hto.called <- sum(Matrix::colSums(counts.hto[,colnames(seur.list[[i]])]))
+      tmp.counts.hto.uncalled <- sum(Matrix::colSums(counts.hto[,colnames(counts.hto) %!in% colnames(seur.list[[i]])]))
+      tmp.counts.hto.negative <- sum(Matrix::colSums(counts.hto[,bcs.negative]))
+      tmp.counts.hto.singlet <- sum(Matrix::colSums(counts.hto[,bcs.singlet]))
+      tmp.counts.hto.doublet <- sum(Matrix::colSums(counts.hto[,bcs.doublet]))
+      tmp.counts.hto.total <- tmp.counts.hto.called + tmp.counts.hto.uncalled
+      
+      tmp.percen.rna.uncalled <- round(tmp.counts.rna.uncalled/tmp.counts.rna.total*100)
+      tmp.percen.rna.negative <- round(tmp.counts.rna.negative/tmp.counts.rna.total*100)
+      tmp.percen.rna.singlet <- round(tmp.counts.rna.singlet/tmp.counts.rna.total*100)
+      tmp.percen.rna.doublet <- round(tmp.counts.rna.doublet/tmp.counts.rna.total*100)
+      
+      tmp.percen.hto.uncalled <- round(tmp.counts.hto.uncalled/tmp.counts.hto.total*100)
+      tmp.percen.hto.negative <- round(tmp.counts.hto.negative/tmp.counts.hto.total*100)
+      tmp.percen.hto.singlet <- round(tmp.counts.hto.singlet/tmp.counts.hto.total*100)
+      tmp.percen.hto.doublet <- round(tmp.counts.hto.doublet/tmp.counts.hto.total*100)
+      
+      tmp.labpos.rna.uncalled <- tmp.counts.rna.uncalled/2
+      tmp.labpos.rna.negative <- tmp.counts.rna.uncalled + tmp.counts.rna.negative/2
+      tmp.labpos.rna.singlet <- tmp.counts.rna.uncalled + tmp.counts.rna.negative + tmp.counts.rna.singlet/2
+      tmp.labpos.rna.doublet <- tmp.counts.rna.uncalled + tmp.counts.rna.negative + tmp.counts.rna.singlet + tmp.counts.rna.doublet/2
+
+      tmp.labpos.hto.uncalled <- tmp.counts.hto.uncalled/2
+      tmp.labpos.hto.negative <- tmp.counts.hto.uncalled + tmp.counts.hto.negative/2
+      tmp.labpos.hto.singlet <- tmp.counts.hto.uncalled + tmp.counts.hto.negative + tmp.counts.hto.singlet/2
+      tmp.labpos.hto.doublet <- tmp.counts.hto.uncalled + tmp.counts.hto.negative + tmp.counts.hto.singlet + tmp.counts.hto.doublet/2
+      
+      tmp.df.hto <- data.frame(Library = c('RNA','RNA','RNA','RNA',
+                                           'HTO','HTO','HTO','HTO'),
+                               Class = c('Uncalled','Negative','Singlet','Doublet',
+                                         'Uncalled','Negative','Singlet','Doublet'),
+                               CountSum = c(tmp.counts.rna.uncalled,tmp.counts.rna.negative,tmp.counts.rna.singlet,tmp.counts.rna.doublet,
+                                            tmp.counts.hto.uncalled,tmp.counts.hto.negative,tmp.counts.hto.singlet,tmp.counts.hto.doublet),
+                               CountPer = c(tmp.percen.rna.uncalled,tmp.percen.rna.negative,tmp.percen.rna.singlet,tmp.percen.rna.doublet,
+                                            tmp.percen.hto.uncalled,tmp.percen.hto.negative,tmp.percen.hto.singlet,tmp.percen.hto.doublet),
+                               Labelpos = c(tmp.labpos.rna.uncalled,tmp.labpos.rna.negative,tmp.labpos.rna.singlet,tmp.labpos.rna.doublet,
+                                            tmp.labpos.hto.uncalled,tmp.labpos.hto.negative,tmp.labpos.hto.singlet,tmp.labpos.hto.doublet),
+                               Pool = c(pool.10x,pool.10x,pool.10x,pool.10x,
+                                        pool.hto,pool.hto,pool.hto,pool.hto))
+      
+      df.hto <- rbind(df.hto,tmp.df.hto)
+    }
   }
   
   df[['Labelpos']] <- ifelse(df[['ReadType']] == 'Unspliced',
                              df[['CountSum']]/2, df[['CountTot']] - df[['CountSum']]/2)
+  
   
   p <- ggplot(data = df, aes(x = Pool, y = CountSum, fill = ReadType)) +
     geom_bar(stat = 'identity') + 
@@ -1045,11 +1112,43 @@ foreach(i = seq(com.ID.list),
     facet_wrap(~CellType, nrow = 2) +
     theme_minimal()
   
-  ggsave(filename = paste0('readDistribution_alevin.png'),
+  ggsave(filename = paste0('read-distribution_alevin.png'),
          plot = p,
          path = dir.outs.qc.plots,
          width = 12,
          height = 8)
+  
+  if (var.wofl == '10x + HTO') {
+    
+    p.rna <- ggplot(data = df.hto[df.hto[['Library']] == 'RNA',],
+                    aes(x = Pool, y = CountSum, fill=factor(Class, levels = c('Doublet','Singlet','Negative','Uncalled')))) +
+      geom_bar(stat = 'identity') + 
+      geom_text(aes(label = paste0(CountPer, '%'),
+                    y = Labelpos),
+                size = 3) +
+      coord_flip() + ggtitle('Read distribution by HTO class', subtitle = 'RNA reads') +
+      xlab('Index') + ylab('Summed counts') + scale_fill_discrete(name = 'Classification') +
+      scale_fill_manual(values = c('#D34F73','#ff66b3','#ffb366','grey')) +
+      labs(fill='Classification') + theme_minimal()
+    
+    p.hto <- ggplot(data = df.hto[df.hto[['Library']] == 'HTO',],
+                    aes(x = Pool, y = CountSum, fill=factor(Class, levels = c('Doublet','Singlet','Negative','Uncalled')))) +
+      geom_bar(stat = 'identity') + 
+      geom_text(aes(label = paste0(CountPer, '%'),
+                    y = Labelpos),
+                size = 3) +
+      coord_flip() + ggtitle('', subtitle = 'HTO reads') +
+      xlab('') + ylab('Summed counts') + scale_fill_discrete(name = 'Classification') +
+      scale_fill_manual(values = c('#D34F73','#ff66b3','#ffb366','grey')) +
+      labs(fill='Classification') + theme_minimal()
+    
+    plot.comb <- cowplot::plot_grid(p.rna+NoLegend(),p.hto,ncol = 2,rel_widths = c(2,1.5))
+    ggsave(filename = paste0('read-distribution_HTO-class.png'),
+           plot = plot.comb,
+           path = dir.outs.qc.plots,
+           width = 16,
+           height = length(df.hto$Pool)/2)
+  }
   
   cat('#\n',
       '#\n',

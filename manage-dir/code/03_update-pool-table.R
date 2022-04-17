@@ -155,7 +155,7 @@ for (com.ID in com.ID.list) {
     seqs.10x      <- listLen(pins.10x)
     
     for (pin.i in seq(pins.10x)) {
-      tmp.seq <- grep(list.files(dir.bcls), pattern = pins.10x[pin.i], value = T)
+      tmp.seq <- grep(list.files(dir.bcls), pattern = paste0('_',pins.10x[pin.i],'_'), value = T)
       seqs.10x[pin.i] <- tmp.seq
       tmp.seqs.10x <- c(tmp.seqs.10x, tmp.seq)
     }
@@ -170,14 +170,14 @@ for (com.ID in com.ID.list) {
       seqs.hto      <- listLen(pins.hto)
       
       for (pin.i in seq(pins.hto)) {
-        tmp.seq <- grep(list.files(dir.bcls), pattern = pins.hto[pin.i], value = T)
+        tmp.seq <- grep(list.files(dir.bcls), pattern = paste0('_',pins.hto[pin.i],'_'), value = T)
         seqs.hto[pin.i] <- tmp.seq
         tmp.seqs.hto <- c(tmp.seqs.hto,tmp.seq)
       }
       
       tmp.seqs.hto.unique <- unique(tmp.seqs.hto)
       tmp.pool[['SEQ NAMES (HTO)']] <- paste(tmp.seqs.hto.unique, collapse = ',')
-      tmp.seqs.all <- unique(tmp.seqs.10x.unique,tmp.seqs.hto.unique)
+      tmp.seqs.all <- unique(c(tmp.seqs.10x.unique,tmp.seqs.hto.unique))
     }
     
     for (bcl in rev(tmp.seqs.all)) {
@@ -211,7 +211,7 @@ for (com.ID in com.ID.list) {
           tmp.pool[['Index (10x)']] <- paste(paste0('SI-TT-', pool.10x), collapse = ',')
         }
         if (tmp.index %in% read.df[['SampleId']]) {
-          tmp.pool[['READS (10x)']] <- tmp.pool[['READS (10x)']] + read.df[read.df[['SampleId']] == tmp.index,] [['Counts']]
+          tmp.pool[['READS (10x)']] <- tmp.pool[['READS (10x)']] + read.df[read.df[['SampleId']] == tmp.index,][['Counts']]
         }
       }
       if (var.wofl == '10x + HTO') {

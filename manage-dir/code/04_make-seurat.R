@@ -16,6 +16,7 @@ suppressPackageStartupMessages({
   library(DropletUtils)
   library(Matrix)
   library(mclust)
+  library(AnnotationDbi)
 })
 
 ################################################################################

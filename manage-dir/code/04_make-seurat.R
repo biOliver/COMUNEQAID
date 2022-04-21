@@ -315,6 +315,125 @@ emptyDropsManu <- function(q, manualInfl){
   return(bcs.manu)
 }
 
+is_multimodal <- function(x, p.cutoff = 1e-2) {
+  # Test if the expression distribution violates unimodal distribution.
+  p = diptest::dip.test(x)$p.value
+  return(p < p.cutoff)
+}
+
+select_hash_cutoff_mcl <- function(x, q = 1, seed = 42) {
+  # Model HTO data as a mixture of two gaussian distributions (for normalized [across cells] data)
+  # And select HTO cutoff based on mclust (Model based clustering).
+  assertthat::assert_that(class(x) == "numeric")
+  assertthat::is.number(seed)
+  assertthat::assert_that(length(seed) == 1)
+  set.seed(seed)
+  # For each HTO, the data can be modeled as 
+  km <- mclust::Mclust(data = x, G = 2, verbose = F)
+  cl <- km$classification
+  cl_center = km$parameters$mean
+  high_cl <- which(cl_center == max(cl_center))
+  low_cl <- which(cl_center != max(cl_center))
+  #high_center <- cl_center[high_cl]
+  #low_center <- cl_center[low_cl]
+  #fc <- high_center / low_center
+  #print(fc)
+  cutoff <- quantile(x[cl == low_cl], q)
+  return(cutoff)
+}
+
+hash_mcl_p <- function(x, seed = 3030) {
+  assertthat::assert_that(class(x) == "numeric")
+  assertthat::is.number(seed)
+  assertthat::assert_that(length(seed) == 1)
+  set.seed(seed)
+  km <- mclust::Mclust(data = x, G = 2, verbose = F)
+  cl <- km$classification
+  cl_center = km$parameters$mean
+  high_cl <- which(cl_center == max(cl_center))
+  low_cl <- which(cl_center != max(cl_center))
+  p.high_cl <- km$z[,high_cl]
+  # Correct assignment error from Mclust
+  p.high_cl[which(x < median(cl_center[low_cl]))] = 0
+  names(p.high_cl) = names(x)
+  return(p.high_cl)
+}
+
+HTO_classifcation = function(discrete, hto_mcl.p, assay){
+  # Based on HTODemux (Seurat)
+  npositive <- colSums(x = discrete)
+  classification.global <- npositive
+  classification.global[npositive == 0] <- "Negative"
+  classification.global[npositive == 1] <- "Singlet"
+  classification.global[npositive > 1] <- "Doublet"
+  donor.id = rownames(x = discrete)
+  hash.max <- apply(X = hto_mcl.p, MARGIN = 2, FUN = max) # This returns the probability of the most likely HashID (based on the Hashtag distribution among cells)
+  hash.maxID <- as.character(donor.id[apply(X = hto_mcl.p, MARGIN = 2, FUN = which.max)])
+  hash.second <- apply(X = hto_mcl.p, MARGIN = 2, FUN = function(x) sort(x,decreasing = T)[2])
+  hash.secondID <- as.character(donor.id[apply(X = hto_mcl.p, MARGIN = 2, FUN = function(x) order(x,decreasing = T)[2])])
+  hash.margin <- hash.max - hash.second
+  doublet_id <- sapply(X = 1:length(x = hash.maxID), FUN = function(x) {
+    return(paste(sort(x = c(hash.maxID[x], hash.secondID[x])), 
+                 collapse = "_"))
+  })
+  classification <- classification.global
+  classification[classification.global == "Negative"] <- "Negative"
+  classification[classification.global == "Singlet"] <- hash.maxID[which(x = classification.global == "Singlet")]
+  classification[classification.global == "Doublet"] <- doublet_id[which(x = classification.global == "Doublet")]
+  classification.metadata <- data.frame(hash.maxID, hash.secondID, hash.margin, classification, classification.global)
+  colnames(x = classification.metadata) <- paste(assay, 'mcl', c("maxID", "secondID", "margin", "classification", "classification.global"), sep = "_")
+  return(classification.metadata)
+}
+
+HTODemux.mcl <- function(object, assay = "HTO", q = 1, seed = 42){
+  # A function to find the threshold for each hastag, the P, and singlet, doublets and negative.
+  # The input is the HTO data matrix (normalized across cells).
+  
+  assay <- assay %||% DefaultAssay(object = object)
+  data <- GetAssayData(object = object, assay = assay, slot = 'data')
+  hto_mcl.cutoff = data.frame(cut_off = future.apply::future_apply(data,1,function(x) select_hash_cutoff_mcl(x,q = q), future.seed = T))
+  hto_mcl.cutoff$Multi_modal = apply(data,1,function(x) is_multimodal(x))
+  print(hto_mcl.cutoff)
+  hto_mcl.p = t(apply(data,1,function(x) hash_mcl_p(x, seed = seed)))
+  discrete <- data
+  discrete[discrete > 0] <- 0
+  for (iter in rownames(x = data)) {
+    values <- data[iter, ]
+    cutoff <- hto_mcl.cutoff[iter,'cut_off']
+    discrete[iter, names(x = which(x = values > cutoff))] <- 1
+  }
+  classification.metadata <- HTO_classifcation(discrete, hto_mcl.p, assay)
+  object <- AddMetaData(object = object, metadata = classification.metadata)
+  Idents(object) <- paste(assay, "mcl", "classification", sep = '_')
+  doublets <- rownames(x = object[[]])[which(object[[paste(assay, "mcl","classification.global", sep = "_")]] == "Doublet")]
+  Idents(object = object, cells = doublets) <- "Doublet"
+  object$hash.mcl.ID <- Idents(object = object)
+  return(object)
+}
+
+HTODemux.mcl.visualization <- function(object, assay = "HTO", q = 1, seed = 42){
+  assay <- assay %||% DefaultAssay(object = object)
+  data <- GetAssayData(object = object, assay = assay, slot = 'data')
+  hto.data.wide = data.frame(t(data))
+  hto.data.long = data.table::melt(data.table::setDT(hto.data.wide,keep.rownames = T), id.vars = 'rn', value.name = 'Expression',variable.name = 'hto')
+  hto_mcl.cutoff = data.frame(cut_off = future.apply::future_apply(data,1,function(x) select_hash_cutoff_mcl(x,q = q), future.seed = T), hto = colnames(hto.data.wide)[-1])
+  
+  p <- ggplot(hto.data.long, aes(x = Expression))+
+    geom_histogram(bins = 100)+
+    geom_vline(data = hto_mcl.cutoff, aes(xintercept = cut_off), col = 'red')+
+    facet_wrap(~hto,scales = 'free',ncol = 2) +
+    xlab('Expression') +
+    ylab('Counts') +
+    ggtitle('Individual HTO distributions') +
+    theme_minimal()
+  
+  ggsave(filename = paste0(tmp.pool[['Index (10x)']],'_HTO-hist.png'),
+         plot = p,
+         path = dir.outs.qc.plots,
+         width = 8,
+         height = 8)
+}
+
 dub_cutoff <- function(x) {
   
   # calculate number of neighbors at each proportion that are doublets
@@ -373,7 +492,7 @@ for (com.ID in com.ID.list) {
   dir.outs.log <- file.path(dir.proj, 'scRNAseq', '04_Log', com.ID)
   dir.outs.qc.plots <- file.path(dir.outs.qc, com.ID, 'plots')
   
-  dir.outs.indi <- file.path(dir.proj, 'Output', 'data', 'pool-unfiltered', com.ID)
+  dir.outs.indi <- file.path(dir.proj, 'Output', 'data', 'reaction-unfiltered', com.ID)
   
   var.orga <- scan(file.path(dir.data,'tmp_organism.txt'), what = '', sep = '\n', quiet = T)
   var.wofl <- scan(file.path(dir.data,'tmp_workflow.txt'), what = '', sep = '\n', quiet = T)
@@ -544,11 +663,10 @@ for (com.ID in com.ID.list) {
           sep = '')
       cat('#\t-\tRNA\n')
       seur.full <- CreateSeuratObject(counts.rna[,cells.keep], project = pool.10x)
-      #seur.full <- CreateSeuratObject(counts.rna[,cells.keep], project = paste0(seqs.hto, collapse = '-'))
       seur.full[['Index.10x']] <- pool.10x
-      seur.full[['Index.HTO']] <- pool.hto
       cat('#\t-\tHTO\n')
       seur.full[['HTO']] <- CreateAssayObject(counts.hto[,cells.keep])
+      seur.full[['Index.HTO']] <- pool.hto
       cat('#\t-\tSpliced\n')
       seur.full[['spliced']] <- CreateAssayObject(counts.spl[,cells.keep])
       cat('#\t-\tUnspliced\n')
@@ -560,50 +678,62 @@ for (com.ID in com.ID.list) {
       
       cat('#\tHTO demultiplexing..\n')
       cat('#\t-\tnormalizing..\n')
-      seur.full <- NormalizeData(seur.full, assay = 'HTO', normalization.method = 'CLR', margin = 1, verbose = F)
+      #seur.full <- NormalizeData(seur.full, assay = 'HTO', normalization.method = 'CLR', margin = 1)
+      seur.full <- NormalizeData(seur.full, assay = 'HTO', normalization.method = 'CLR', margin = 2, verbose = F)
       
-      VariableFeatures(seur.full, assay = 'HTO') <- rownames(seur.full[['HTO']]@counts)
+      #VariableFeatures(seur.full, assay = 'HTO') <- rownames(seur.full[['HTO']]@counts)
       
-      cat('#\t-\tscaling..\n',
-          sep = '')
-      seur.full <- ScaleData(seur.full, assay = 'HTO', verbose = F)
+      #cat('#\t-\tscaling..\n',
+      #    sep = '')
+      #seur.full <- ScaleData(seur.full, assay = 'HTO', verbose = F)
       
-      cat('#\t-\toptimizing HTO-demultiplexing parameters for singlet abundance..\n',
-          sep = '')
+      #cat('#\t-\toptimizing HTO-demultiplexing parameters for singlet abundance..\n',
+      #    sep = '')
       
-      x <- seur.full
-      thresh <- .95
-      sing.max <- 0
+      #x <- seur.full
+      #thresh <- .95
+      #sing.max <- 0
       
-      for (q in seq(.99, .5, -.01)) {
-        x <- HTODemux(x,
-                      assay = 'HTO',
-                      kfunc = 'kmeans',
-                      positive.quantile = q,
-                      verbose = F)
-        
-        doub.tmp <- table(x[['HTO_classification.global']])['Doublet']
-        nega.tmp <- table(x[['HTO_classification.global']])['Negative']
-        sing.tmp <- table(x[['HTO_classification.global']])['Singlet']
-        
-        if (sing.tmp > sing.max) {
-          doub.max <- doub.tmp
-          nega.max <- nega.tmp
-          sing.max <- sing.tmp
-          thresh <- q
-        }
-      }
-      cat('#\t-\t\tOptimal quantile:\t',thresh,'\n',
-          '#\t-\t\tDoublets:\t\t',doub.max,'\n',
-          '#\t-\t\tNegatives:\t\t',nega.max,'\n',
-          '#\t-\t\tSinglets:\t\t',sing.max,'\n',
-          sep = '')
-      
-      remove(list = c('x'))
-      
+      #for (q in seq(.99, .5, -.01)) {
+      #  x <- HTODemux(x,
+      #                assay = 'HTO',
+      #                kfunc = 'kmeans',
+      #                positive.quantile = q,
+      #                verbose = F)
+      #  
+      #  doub.tmp <- table(x[['HTO_classification.global']])['Doublet']
+      #  nega.tmp <- table(x[['HTO_classification.global']])['Negative']
+      #  sing.tmp <- table(x[['HTO_classification.global']])['Singlet']
+      #  
+      #  if (sing.tmp > sing.max) {
+      #    doub.max <- doub.tmp
+      #    nega.max <- nega.tmp
+      #    sing.max <- sing.tmp
+      #    thresh <- q
+      #  }
+      #}
+      #cat('#\t-\t\tOptimal quantile:\t',thresh,'\n',
+      #    '#\t-\t\tDoublets:\t\t',doub.max,'\n',
+      #    '#\t-\t\tNegatives:\t\t',nega.max,'\n',
+      #    '#\t-\t\tSinglets:\t\t',sing.max,'\n',
+      #    sep = '')
+      #
+      #remove(list = c('x'))
+      #
       cat('#\t-\tdemultiplexing HTOs..\n',
           sep = '')
-      seur.full <- HTODemux(seur.full, assay = 'HTO', kfunc = 'kmeans', positive.quantile = thresh, verbose = F)
+      #seur.full <- HTODemux(seur.full, assay = 'HTO', kfunc = 'kmeans', positive.quantile = thresh, verbose = F)
+      seur.full <- HTODemux.mcl(seur.full, q = 1)
+      seur.full[,seur.full$HTO_mcl_classification.global == 'Doublet']
+      
+      table(seur.full$HTO_mcl_classification.global)[names(table(seur.full$HTO_mcl_classification.global)) == 'Doublet']
+      
+      cat('#\t-\t\tDoublets:\t\t',table(seur.full$HTO_mcl_classification.global)[names(table(seur.full$HTO_mcl_classification.global)) == 'Doublet'],'\n',
+          '#\t-\t\tNegatives:\t\t',table(seur.full$HTO_mcl_classification.global)[names(table(seur.full$HTO_mcl_classification.global)) == 'Negative'],'\n',
+          '#\t-\t\tSinglets:\t\t',table(seur.full$HTO_mcl_classification.global)[names(table(seur.full$HTO_mcl_classification.global)) == 'Singlet'],'\n',
+          sep = '')
+      
+      HTODemux.mcl.visualization(seur.full)
       
       cat('#\t-\tperforming tSNE\n',
           sep = '')
@@ -618,23 +748,23 @@ for (com.ID in com.ID.list) {
              path = dir.outs.qc.plots,
              width = 8,
              height = 8)
-      
-      p <- DimPlot(seur.full, group.by = 'hash.ID') + ggtitle(paste0('HTO demultiplexing (quantile: ',thresh,')'))
+
+      p <- DimPlot(seur.full, group.by = 'hash.mcl.ID') + ggtitle(paste0('HTO demultiplexing'))
       ggsave(filename = paste0(tmp.pool[['Index (10x)']],'_HTO-tSNE-plot.png'),
              plot = p,
              path = dir.outs.qc.plots,
              width = 8,
              height = 8)
       
-      Idents(seur.full) <- 'HTO_maxID'
-      p <- RidgePlot(seur.full, features = rownames(seur.full[['HTO']]@counts), assay = 'HTO', ncol = 1)
-      suppressMessages(
-        ggsave(filename = paste0(tmp.pool[['Index (10x)']],'_HTO-ridge-plot.png'),
-               plot = p,
-               path = dir.outs.qc.plots,
-               width = 8,
-               height = (2*length(table(seur.full$HTO_maxID))))
-      )
+      #Idents(seur.full) <- 'HTO_maxID'
+      #p <- RidgePlot(seur.full, features = rownames(seur.full[['HTO']]@counts), assay = 'HTO', ncol = 1)
+      #suppressMessages(
+      #  ggsave(filename = paste0(tmp.pool[['Index (10x)']],'_HTO-ridge-plot.png'),
+      #         plot = p,
+      #         path = dir.outs.qc.plots,
+      #         width = 8,
+      #         height = (2*length(table(seur.full$HTO_maxID))))
+      #)
       
       cat('#\n',
           '#\n',
@@ -652,7 +782,7 @@ for (com.ID in com.ID.list) {
       top.hash <- getTopHVGs(dec.hash, n = 1000)
       set.seed(1011110)
       sce.full <- runPCA(sce.full, subset_row = top.hash, ncomponents = 20)
-      sce.full[['doublet']] <- if_else(sce.full[['hash.ID']] == 'Doublet', true = T, false = F)
+      sce.full[['doublet']] <- if_else(sce.full[['hash.mcl.ID']] == 'Doublet', true = T, false = F)
       
       # Recovering the intra-sample doublets:
       cat('#\t-\trecovering intra-sample doublets\n',
@@ -660,7 +790,7 @@ for (com.ID in com.ID.list) {
       hashed.doublets <- scDblFinder::recoverDoublets(sce.full,
                                                       use.dimred = 'PCA',
                                                       doublets = sce.full[['doublet']],
-                                                      samples = table(sce.full[['hash.ID']]))
+                                                      samples = table(sce.full[['hash.mcl.ID']]))
       
       sce.full[['proportion_dub_neighbors']] <- hashed.doublets[['proportion']]
       sce.full[['predicted_dub_std']] <- hashed.doublets[['predicted']]

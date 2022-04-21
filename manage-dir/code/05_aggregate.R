@@ -264,7 +264,7 @@ foreach(i = seq(com.ID.list),
   dir.outs.qc.plots <- file.path(dir.outs.qc, com.ID, 'plots')
   dir.outs.qc.summa <- file.path(dir.outs.qc, com.ID, 'summary')
   
-  dir.outs.indi <- file.path(dir.proj, 'Output', 'data', 'pool-unfiltered', com.ID)
+  dir.outs.indi <- file.path(dir.proj, 'Output', 'data', 'reaction-unfiltered', com.ID)
   dir.outs.comb <- file.path(dir.proj, 'Output', 'data', 'aggregated-filtered', com.ID)
   
   var.wofl <- scan(file.path(dir.data,'tmp_workflow.txt'), what = '', sep = '\n', quiet = T)

@@ -285,11 +285,11 @@ for (com.ID in com.ID.list) {
       geom_bar(mapping = aes(x = reorder(Barcode, n_obs_comb), y = n_obs_comb),stat = 'identity') +
       coord_flip() +
       xlab('Bardcode') +
-      ylab('Count') +
+      ylab('Counts') +
       ggtitle(paste0('Top 10 unknown barcodes - ',bcl)) +
       theme_minimal()
     
-    ggsave(filename = paste0('undetermined-BCs-top10_',bcl,'.png'),
+    ggsave(filename = paste0('counts-top10-undet_',bcl,'.png'),
            plot = p,
            path = dir.outs.qc.plots,
            width = 12,
@@ -328,8 +328,12 @@ for (com.ID in com.ID.list) {
   
   p <- ggplot(read.df.all, aes(x = SampleId, y = Counts)) +
     geom_bar(stat = 'identity') +
+    facet_wrap(~Seq) +
     coord_flip() +
-    facet_wrap(~Seq)
+    xlab('Index') +
+    ylab('Reads') +
+    ggtitle('FASTQ read distribution') +
+    theme_minimal()
   
   ggsave(filename = paste0('read-distribution_bcl2fastq.png'),
          plot = p,

@@ -678,51 +678,10 @@ for (com.ID in com.ID.list) {
       
       cat('#\tHTO demultiplexing..\n')
       cat('#\t-\tnormalizing..\n')
-      #seur.full <- NormalizeData(seur.full, assay = 'HTO', normalization.method = 'CLR', margin = 1)
       seur.full <- NormalizeData(seur.full, assay = 'HTO', normalization.method = 'CLR', margin = 2, verbose = F)
       
-      #VariableFeatures(seur.full, assay = 'HTO') <- rownames(seur.full[['HTO']]@counts)
-      
-      #cat('#\t-\tscaling..\n',
-      #    sep = '')
-      #seur.full <- ScaleData(seur.full, assay = 'HTO', verbose = F)
-      
-      #cat('#\t-\toptimizing HTO-demultiplexing parameters for singlet abundance..\n',
-      #    sep = '')
-      
-      #x <- seur.full
-      #thresh <- .95
-      #sing.max <- 0
-      
-      #for (q in seq(.99, .5, -.01)) {
-      #  x <- HTODemux(x,
-      #                assay = 'HTO',
-      #                kfunc = 'kmeans',
-      #                positive.quantile = q,
-      #                verbose = F)
-      #  
-      #  doub.tmp <- table(x[['HTO_classification.global']])['Doublet']
-      #  nega.tmp <- table(x[['HTO_classification.global']])['Negative']
-      #  sing.tmp <- table(x[['HTO_classification.global']])['Singlet']
-      #  
-      #  if (sing.tmp > sing.max) {
-      #    doub.max <- doub.tmp
-      #    nega.max <- nega.tmp
-      #    sing.max <- sing.tmp
-      #    thresh <- q
-      #  }
-      #}
-      #cat('#\t-\t\tOptimal quantile:\t',thresh,'\n',
-      #    '#\t-\t\tDoublets:\t\t',doub.max,'\n',
-      #    '#\t-\t\tNegatives:\t\t',nega.max,'\n',
-      #    '#\t-\t\tSinglets:\t\t',sing.max,'\n',
-      #    sep = '')
-      #
-      #remove(list = c('x'))
-      #
       cat('#\t-\tdemultiplexing HTOs..\n',
           sep = '')
-      #seur.full <- HTODemux(seur.full, assay = 'HTO', kfunc = 'kmeans', positive.quantile = thresh, verbose = F)
       seur.full <- HTODemux.mcl(seur.full, q = 1)
       seur.full[,seur.full$HTO_mcl_classification.global == 'Doublet']
       

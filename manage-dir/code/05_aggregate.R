@@ -371,7 +371,7 @@ foreach(i = seq(com.ID.list),
     seur.comb[['predicted_dub_all']] <- colnames(seur.comb) %in% cells.remove.predDub
     
     p <- VlnPlot(seur.comb, 'nCount_RNA', group.by = 'predicted_dub_all', log = T) + ggtitle('Inferential doublets')
-    ggsave(filename = paste0(com.ID,'_cells_remove_infDoubl.png'),
+    ggsave(filename = paste0(com.ID,'_cells_remove_inf-doubl.png'),
            plot = p,
            path = dir.outs.qc.plots,
            width = 8,
@@ -385,7 +385,7 @@ foreach(i = seq(com.ID.list),
     cat('#\t-\tremoving negatives and doublets\n',
         sep = '')
     # retain only cells classified as singlets
-    Idents(seur.comb) <- 'HTO_classification.global'
+    Idents(seur.comb) <- 'HTO_mcl_classification.global'
     seur.comb <- subset(seur.comb, idents = 'Singlet')
     cat('#\t\t(',length(colnames(seur.comb)),' cells remaining)\n',
         sep = '')
@@ -403,7 +403,7 @@ foreach(i = seq(com.ID.list),
       '#\n',
       sep = '')
   
-  Idents(seur.comb) <- 'hash.ID'
+  Idents(seur.comb) <- 'hash.mcl.ID'
   cat('#\tAnalyzing object..\n',
       sep = '')
   
@@ -434,7 +434,7 @@ foreach(i = seq(com.ID.list),
   cat('#\t-\tsaving dimentional reduction plot\n',
       sep = '')
   if (var.wofl == '10x + HTO') {
-    p <- DimPlot(seur.comb, group.by = 'hash.ID') + ggtitle(paste0('Samples (',dims,' PCs)'))
+    p <- DimPlot(seur.comb, group.by = 'hash.mcl.ID') + ggtitle(paste0('Samples (',dims,' PCs)'))
   }else {
     p <- DimPlot(seur.comb, group.by = 'orig.ident') + ggtitle(paste0('Samples (',dims,' PCs)'))
   }
@@ -561,18 +561,8 @@ foreach(i = seq(com.ID.list),
     for (pool.i in seq(n.pools)) {
       tmp.pool      <- pool.table[pool.i,]
       
-      #pool.10x <- pool.table[i,][['Pool..10x.']]
-      #pool.hto <- pool.table[i,][['Pool..HTO.']]
-      #load.cells <- pool.table[i,][['Loaded.Cells']]
-      
-      
-      #pins.10x      <- str_split(tmp.pool[['BCL PIN (10x)']], ',', simplify = T)[1,]
-      
       pool.10x      <- str_split(tmp.pool[['Index (10x)']], ',', simplify = T)[1,]
       pool.hto      <- str_split(tmp.pool[['Index (HTO)']], ',', simplify = T)[1,]
-      
-      #seqs.10x      <- listLen(pins.10x)
-      
       
       # Init
       stats.10x <- list()
@@ -594,14 +584,10 @@ foreach(i = seq(com.ID.list),
       
       stats.10x[['Plot (Barcode Ranks)']] <- ' '
       
-      ###
-      
       cells.ranks <- emptyDropsmodal(q = counts.10x,
                                      verbose = F,
                                      plot = F,
                                      format = 'noSave', skipModCheck = T)
-      
-      ###
       
       # Read featureDump.txt
       featDump.10x <- suppressMessages(read_delim(file.path(mat.files.10x,'featureDump.txt'), delim = '\t'))
@@ -644,25 +630,16 @@ foreach(i = seq(com.ID.list),
       stats.hto[['Plot (UMIvsUMI) - cal']] <- ' '
       stats.hto[['Plot (UMIvsUMI) - unc']] <- ' '
       
-      #stats.10x[['Reads (Raw)']] <- read.df[read.df[['SampleId']] == pool.10x,][[2]]
-      #stats.hto[['Reads (Raw)']] <- read.df.hto[read.df.hto[['SampleId']] == pool.hto,][[2]]
       stats.10x[['Reads (Raw)']] <- tmp.pool[['READS (10x)']]
       stats.hto[['Reads (Raw)']] <- tmp.pool[['READS (HTO)']]
       
-      #stats.10x[['Cells (Loaded)']] <- load.cells
-      #stats.hto[['Cells (Loaded)']] <- load.cells
       stats.10x[['Cells (Loaded)']] <- tmp.pool[['Loaded Cells']]
       stats.hto[['Cells (Loaded)']] <- tmp.pool[['Loaded Cells']]
-      
-      ## Read featureDump.txt
-      #featDump.10x <- suppressMessages(read_delim(file.path(mat.files.10x,'featureDump.txt'), delim = '\t'))
-      #featDump.hto <- suppressMessages(read_delim(file.path(mat.files.hto,'featureDump.txt'), delim = '\t'))
       
       # CALLED CELLS - BARCODE RANKS
       Idents(seur.comb) <- 'orig.ident'
       seur.comb.sub <- subset(seur.comb, idents = pool.10x)
-      #cells.ranks <- sapply(strsplit(colnames(seur.comb.sub),'[_]'), '[', 1)
-      
+
       # 10x
       stats.10x[['Cells (Called)']] <- length(unique(featDump.10x[featDump.10x[['CB']] %in% cells.ranks,][['CB']]))
       stats.10x[['Cells % Loaded (Called)']] <- paste(as.character(round(stats.10x[['Cells (Called)']] / stats.10x[['Cells (Loaded)']] * 100, 1)),'%')
@@ -687,7 +664,7 @@ foreach(i = seq(com.ID.list),
       
       
       # CALLED SINGLETS (INTER-HTO)
-      Idents(seur.comb.sub) <- 'HTO_classification.global'
+      Idents(seur.comb.sub) <- 'HTO_mcl_classification.global'
       seur.comb.neg <- subset(seur.comb.sub, idents = 'Negative')
       seur.comb.dou <- subset(seur.comb.sub, idents = 'Doublet')
       seur.comb.sub <- subset(seur.comb.sub, idents = 'Singlet')
@@ -1040,7 +1017,7 @@ foreach(i = seq(com.ID.list),
       counts.hto <- load_fry(frydir = mat.files.hto)
       counts.rna <- counts.all[['RNA']]
       
-      Idents(seur.list[[i]]) <- 'HTO_classification.global'
+      Idents(seur.list[[i]]) <- 'HTO_mcl_classification.global'
       seur.comb.neg <- subset(seur.list[[i]], idents = 'Negative')
       seur.comb.sub <- subset(seur.list[[i]], idents = 'Singlet')
       seur.comb.dou <- subset(seur.list[[i]], idents = 'Doublet')

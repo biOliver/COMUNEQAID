@@ -95,7 +95,7 @@ for comID in comID_list:
                 --output-dir=fastq-path \
                 --interop-dir=interop_path \
                 --sample-sheet={sample_sheet} \
-                --barcode-mismatches=0 \
+                --barcode-mismatches=1 \
                 --no-lane-splitting 2>&1 | tee logs/bcl2fastq.log -a')
 
             if (versionRNA == 'RNA v3.1'):

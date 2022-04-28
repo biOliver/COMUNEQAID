@@ -287,7 +287,7 @@ for (com.ID in com.ID.list) {
       xlab('Bardcode') +
       ylab('Counts') +
       ggtitle(paste0('Top 10 unknown barcodes - ',bcl)) +
-      theme_minimal()
+      theme_minimal(base_size = 20)
     
     ggsave(filename = paste0('counts-top10-undet_',bcl,'.png'),
            plot = p,
@@ -333,7 +333,7 @@ for (com.ID in com.ID.list) {
     xlab('Index') +
     ylab('Reads') +
     ggtitle('FASTQ read distribution') +
-    theme_minimal()
+    theme_minimal(base_size = 25)
   
   ggsave(filename = paste0('read-distribution_bcl2fastq.png'),
          plot = p,

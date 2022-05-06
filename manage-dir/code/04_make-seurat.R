@@ -612,22 +612,22 @@ for (com.ID in com.ID.list) {
     ####################  Filter low rank barcodes  ####################
     cells.keep <- emptyDropsmodal(counts.uns)
     
-    ############ MAKE UMI PLOT  (MAYBE NEW VERSION) ############
-    if (var.wofl == '10x + HTO') {
-      featDump.10x <- suppressMessages(read_delim(file.path(mat.files.10x,'featureDump.txt'), delim = '\t'))
-      featDump.hto <- suppressMessages(read_delim(file.path(mat.files.hto,'featureDump.txt'), delim = '\t'))
-      
-      p <- makeUmiPlot(feat.RNA = featDump.10x,
-                       feat.HTO = featDump.hto,
-                       CBs.called = cells.keep,
-                       title = paste0('UMI-UMI plot - ', tmp.pool[['Index (10x)']]))
-      
-      ggsave(filename = paste0(tmp.pool[['Index (10x)']],'_UMI-UMI-plot.png'),
-             plot = p,
-             path = dir.outs.qc.plots,
-             width = 8,
-             height = 8)
-    }
+    ############# MAKE UMI PLOT  (MAYBE NEW VERSION) ############
+    #if (var.wofl == '10x + HTO') {
+    #  featDump.10x <- suppressMessages(read_delim(file.path(mat.files.10x,'featureDump.txt'), delim = '\t'))
+    #  featDump.hto <- suppressMessages(read_delim(file.path(mat.files.hto,'featureDump.txt'), delim = '\t'))
+    #  
+    #  p <- makeUmiPlot(feat.RNA = featDump.10x,
+    #                   feat.HTO = featDump.hto,
+    #                   CBs.called = cells.keep,
+    #                   title = paste0('UMI-UMI plot - ', tmp.pool[['Index (10x)']]))
+    #  
+    #  ggsave(filename = paste0(tmp.pool[['Index (10x)']],'_UMI-UMI-plot.png'),
+    #         plot = p,
+    #         path = dir.outs.qc.plots,
+    #         width = 8,
+    #         height = 8)
+    #}
     ############################################################
     
     counts.rna <- counts.rna[,cells.keep]
@@ -758,8 +758,51 @@ for (com.ID in com.ID.list) {
       seur.full[['doublet']] <- sce.full[['doublet']]
       seur.full[['predicted_dub_std']] <- sce.full[['predicted_dub_std']]
       seur.full[['predicted_dub_cut']] <- sce.full[['predicted_dub_cut']]
+      
+      ############ MAKE UMI PLOT  (MAYBE NEW VERSION) ############
+      featDump.10x <- suppressMessages(read_delim(file.path(mat.files.10x,'featureDump.txt'), delim = '\t'))
+      featDump.hto <- suppressMessages(read_delim(file.path(mat.files.hto,'featureDump.txt'), delim = '\t'))
+      
+      Idents(seur.full) <- 'HTO_mcl_classification.global'
+      seur.full.neg <- subset(seur.full, idents = 'Negative')
+      seur.full.dou <- subset(seur.full, idents = 'Doublet')
+      seur.full.sub <- subset(seur.full, idents = 'Singlet')
+      
+      common.CBs <- intersect(featDump.10x$CB,featDump.hto$CB)
+      
+      featDump.10x %>% 
+        filter(CB %in% common.CBs) %>% 
+        arrange(CB) -> featDump.10x
+      
+      featDump.hto %>% 
+        filter(CB %in% common.CBs) %>% 
+        arrange(CB) -> featDump.hto
+      
+      common.CBs.sort <- sort(common.CBs)
+      
+      tmpdf <- ifelse(common.CBs.sort %in% colnames(seur.full.neg), 'Negative',
+                      ifelse(common.CBs.sort %in% colnames(seur.full.dou), 'Doublet',
+                             ifelse(common.CBs.sort %in% colnames(seur.full.sub), 'Singlet', 'Uncalled')))
+
+      p <- ggplot(mapping = aes(x = featDump.10x$DeduplicatedReads,
+                                y = featDump.hto$DeduplicatedReads,
+                                col = tmpdf)) +
+        geom_point() + scale_x_log10() + scale_y_log10() +
+        labs(x = 'UMIs (RNA)',
+             y = 'UMIs (HTO)',
+             col = '') +
+        theme_minimal() +
+        ggtitle(paste0('UMI-UMI plot - ', tmp.pool[['Index (10x)']]))
+      
+      ggsave(filename = paste0(tmp.pool[['Index (10x)']],'_UMI-UMI-plot.png'),
+             plot = p,
+             path = dir.outs.qc.plots,
+             width = 8,
+             height = 8)
+      
+      ############################################################
     }
-    
+
     if (var.wofl == '10x') {
       cat('#\tConverting matrices to Seurat object(s)..\n',
           sep = '')

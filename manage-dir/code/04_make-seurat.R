@@ -24,6 +24,8 @@ suppressPackageStartupMessages({
 ################################################################################
 '%!in%' <- function(x,y)!('%in%'(x,y))
 
+out_put.cex <- 1.5
+par(cex = out_put.cex)
 load_fry <- function(frydir, which_counts = c('U','S','A'), verbose = FALSE, output_list = F) {
   # read in metadata
   meta_info = rjson::fromJSON(file = file.path(frydir, 'meta_info.json'))
@@ -154,7 +156,6 @@ annotateMat <- function(mat, orga){
 }
 
 emptyDropsmodal <- function(q, verbose = T, plot = T, format = 'save', skipModCheck = F){
-  
   if (verbose) {
     cat('#\tComputing knee & inflection from barcode ranks..\n',
         sep = '')
@@ -219,7 +220,7 @@ emptyDropsmodal <- function(q, verbose = T, plot = T, format = 'save', skipModCh
       if (format == 'save') {
         png(paste0(dir.outs.qc.plots,'/',tmp.pool[['Index (10x)']],'_barcode-ranks-plot.png'), width = 1500, height = 500)
       }
-      par(mfrow = c(1,2))
+      par(mfrow = c(1,2), cex = out_put.cex)
       r <- rank(-bc.calls[['total']])
       suppressWarnings(plot(r, bc.calls[['total']], log = 'xy', xlab = 'Rank', ylab = 'Total UMI count', main = ''))
       abline(h = metadata(bc.calls.new)[['knee']], col = '#ff6c00', lty = 2, lwd = 3)
@@ -248,7 +249,7 @@ emptyDropsmodal <- function(q, verbose = T, plot = T, format = 'save', skipModCh
       if (format == 'save') {
         png(paste0(dir.outs.qc.plots,'/',tmp.pool[['Index (10x)']],'_barcode-ranks-plot.png'), width = 1500, height = 500)
       }
-      par(mfrow = c(1,2))
+      par(mfrow = c(1,2), cex = out_put.cex)
       r <- rank(-bc.calls[['total']])
       suppressWarnings(plot(r, bc.calls[['total']], log = 'xy', xlab = 'Rank', ylab = 'Total UMI count', main = ''))
       abline(h = metadata(bc.calls)[['knee']], col = '#ff6c00', lty = 2, lwd = 3)
@@ -295,7 +296,7 @@ emptyDropsManu <- function(q, manualInfl){
       sep = '')
   
   png(paste0(dir.outs.qc.plots,'/',tmp.pool[['Index (10x)']],'_barcode-ranks-plot.png'), width = 1500, height = 500)
-  par(mfrow = c(1,2))
+  par(mfrow = c(1,2), cex = out_put.cex)
   r <- rank(-bc.calls[['total']])
   suppressWarnings(plot(r, bc.calls[['total']], log = 'xy', xlab = 'Rank', ylab = 'Total gene count', main = ''))
   abline(h = metadata(bc.calls)[['knee']], col = '#ff6c00', lty = 2, lwd = 3)
@@ -407,6 +408,7 @@ HTODemux.mcl <- function(object, assay = "HTO", q = 1, seed = 42){
   Idents(object) <- paste(assay, "mcl", "classification", sep = '_')
   doublets <- rownames(x = object[[]])[which(object[[paste(assay, "mcl","classification.global", sep = "_")]] == "Doublet")]
   Idents(object = object, cells = doublets) <- "Doublet"
+  Idents(object) = factor(Idents(object), levels = c('Doublet', 'Negative', rownames(object@assays$HTO)))
   object$hash.mcl.ID <- Idents(object = object)
   return(object)
 }
@@ -418,14 +420,15 @@ HTODemux.mcl.visualization <- function(object, assay = "HTO", q = 1, seed = 42){
   hto.data.long = data.table::melt(data.table::setDT(hto.data.wide,keep.rownames = T), id.vars = 'rn', value.name = 'Expression',variable.name = 'hto')
   hto_mcl.cutoff = data.frame(cut_off = future.apply::future_apply(data,1,function(x) select_hash_cutoff_mcl(x,q = q), future.seed = T), hto = colnames(hto.data.wide)[-1])
   
-  p <- ggplot(hto.data.long, aes(x = Expression))+
-    geom_histogram(bins = 100)+
-    geom_vline(data = hto_mcl.cutoff, aes(xintercept = cut_off), col = 'red')+
+  p <- ggplot(hto.data.long, aes(x = Expression)) +
+    geom_histogram(bins = 100) +
+    geom_vline(data = hto_mcl.cutoff, aes(xintercept = cut_off), col = 'red') +
     facet_wrap(~hto,scales = 'free',ncol = 2) +
     xlab('Expression') +
     ylab('Counts') +
+   # scale_y_sqrt() +
     ggtitle('Individual HTO distributions') +
-    theme_minimal()
+    theme_minimal(base_size = 20)
   
   ggsave(filename = paste0(tmp.pool[['Index (10x)']],'_HTO-hist.png'),
          plot = p,
@@ -466,11 +469,12 @@ makeUmiPlot <- function(feat.RNA, feat.HTO, CBs.called, title = 'Please give thi
     labs(x = 'UMIs (RNA)',
          y = 'UMIs (HTO)',
          col = '') +
-    theme_minimal() +
+    theme_minimal(base_size = 25) + 
     ggtitle(title)
   
   return(p)
 }
+
 
 
 ################################################################################
@@ -484,7 +488,6 @@ user.ID     <- snakemake@params[['userID']]
 dir.proj <- paste0('/', file.path('projects',user.ID,'COMUNEQAID','outs',scop.ID))
 dir.outs.qc <- file.path(dir.proj, 'scRNAseq', '00_QC')
 dir.bcls <- file.path(dir.proj, 'scRNAseq', '01_BCL')
-
 for (com.ID in com.ID.list) {
   unique.ID <- paste(scop.ID,com.ID,sep = '_')
   
@@ -610,6 +613,7 @@ for (com.ID in com.ID.list) {
         sep = '')
     
     ####################  Filter low rank barcodes  ####################
+    
     cells.keep <- emptyDropsmodal(counts.uns)
     
     ############# MAKE UMI PLOT  (MAYBE NEW VERSION) ############
@@ -708,7 +712,9 @@ for (com.ID in com.ID.list) {
              width = 8,
              height = 8)
 
-      p <- DimPlot(seur.full, group.by = 'hash.mcl.ID') + ggtitle(paste0('HTO demultiplexing'))
+      p <- DimPlot(seur.full, group.by = 'hash.mcl.ID') + 
+        ggtitle(paste0('HTO demultiplexing'))
+      
       ggsave(filename = paste0(tmp.pool[['Index (10x)']],'_HTO-tSNE-plot.png'),
              plot = p,
              path = dir.outs.qc.plots,

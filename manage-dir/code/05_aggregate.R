@@ -18,6 +18,8 @@ suppressPackageStartupMessages({
 ##########                          Functions                         ##########
 ################################################################################
 '%!in%' <- function(x,y)!('%in%'(x,y))
+out_put.cex <- 1.5
+par(cex = out_put.cex)
 
 load_fry <- function(frydir, which_counts = c('U','S','A'), verbose = FALSE, output_list = F) {
   # read in metadata
@@ -182,7 +184,7 @@ emptyDropsmodal <- function(q, verbose = T, plot = T, format = 'save', skipModCh
       if (format == 'save') {
         png(paste0(dir.outs.qc.plots,'/',tmp.pool[['Index (10x)']],'_KneePlot.png'), width = 1500, height = 500)
       }
-      par(mfrow = c(1,2))
+      par(mfrow = c(1,2), cex = out_put.cex)
       r <- rank(-bc.calls[['total']])
       suppressWarnings(plot(r, bc.calls[['total']], log = 'xy', xlab = 'Rank', ylab = 'Total UMI count', main = ''))
       abline(h = metadata(bc.calls.new)[['knee']], col = '#ff6c00', lty = 2, lwd = 3)
@@ -211,7 +213,7 @@ emptyDropsmodal <- function(q, verbose = T, plot = T, format = 'save', skipModCh
       if (format == 'save') {
         png(paste0(dir.outs.qc.plots,'/',tmp.pool[['Index (10x)']],'_KneePlot.png'), width = 1500, height = 500)
       }
-      par(mfrow = c(1,2))
+      par(mfrow = c(1,2), cex = out_put.cex)
       r <- rank(-bc.calls[['total']])
       suppressWarnings(plot(r, bc.calls[['total']], log = 'xy', xlab = 'Rank', ylab = 'Total UMI count', main = ''))
       abline(h = metadata(bc.calls)[['knee']], col = '#ff6c00', lty = 2, lwd = 3)
@@ -1087,7 +1089,7 @@ foreach(i = seq(com.ID.list),
     coord_flip() + ggtitle('Spliced/Unspliced - Counts') +
     xlab('Index') + ylab('Summed counts') + scale_fill_discrete(name = 'Read type') +
     facet_wrap(~CellType, nrow = 2) +
-    theme_minimal()
+    theme_minimal(base_size = 20)
   
   ggsave(filename = paste0('read-distribution_alevin.png'),
          plot = p,
@@ -1106,7 +1108,9 @@ foreach(i = seq(com.ID.list),
       coord_flip() + ggtitle('Read distribution by HTO class', subtitle = 'RNA reads') +
       xlab('Index') + ylab('Summed counts') + scale_fill_discrete(name = 'Classification') +
       scale_fill_manual(values = c('#D34F73','#ff66b3','#ffb366','grey')) +
-      labs(fill='Classification') + theme_minimal()
+      labs(fill='Classification') + 
+      theme_minimal(base_size = 20)
+    
     
     p.hto <- ggplot(data = df.hto[df.hto[['Library']] == 'HTO',],
                     aes(x = Pool, y = CountSum, fill=factor(Class, levels = c('Doublet','Singlet','Negative','Uncalled')))) +
@@ -1117,7 +1121,9 @@ foreach(i = seq(com.ID.list),
       coord_flip() + ggtitle('', subtitle = 'HTO reads') +
       xlab('') + ylab('Summed counts') + scale_fill_discrete(name = 'Classification') +
       scale_fill_manual(values = c('#D34F73','#ff66b3','#ffb366','grey')) +
-      labs(fill='Classification') + theme_minimal()
+      labs(fill='Classification') + 
+      theme_minimal(base_size = 20)
+    
     
     plot.comb <- cowplot::plot_grid(p.rna+NoLegend(),p.hto,ncol = 2,rel_widths = c(2,1.5))
     ggsave(filename = paste0('read-distribution_HTO-class.png'),

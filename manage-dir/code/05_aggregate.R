@@ -589,7 +589,7 @@ foreach(i = seq(com.ID.list),
       cells.ranks <- emptyDropsmodal(q = counts.10x,
                                      verbose = F,
                                      plot = F,
-                                     format = 'noSave', skipModCheck = T)
+                                     format = 'noSave')
       
       # Read featureDump.txt
       featDump.10x <- suppressMessages(read_delim(file.path(mat.files.10x,'featureDump.txt'), delim = '\t'))

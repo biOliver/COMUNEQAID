@@ -32,6 +32,18 @@ rule fastqs:
     script:
         'code/01_make-fastqs.py'
 
+rule fastqc:
+    input:
+        rules.fastqs.output
+    output:
+        temp('success/fastqc_complete.txt')
+    params:
+        scopID = config['scopID'],
+        comID = config['comID'],
+        userID = config['userID']
+    script:
+        'code/02_fastqc.py'
+
 rule quant:
     input:
         rules.fastqs.output
@@ -46,7 +58,7 @@ rule quant:
     log:
         'logs/02_map-quant.log'
     threads:
-        80
+        76
     script:
         'code/02_map-quant.py'
 
@@ -115,7 +127,8 @@ rule aggregate:
 rule cleanup:
     input:
         #rules.integrate.output
-        rules.aggregate.output
+        rules.aggregate.output,
+        rules.fastqc.output
     output:
         temp('success/cleanup_complete.txt')
     params:

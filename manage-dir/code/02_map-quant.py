@@ -104,7 +104,13 @@ for comID in comID_list:
         salmon_index = f'{path_ref}/af_tutorial_splici/mmul_10_splici_idx'
         T2G          = f'{path_ref}/Mmul_10/t2g.tsv'
         T3G          = f'{path_ref}/Mmul_10/t2g_3col.tsv'
-    
+
+    elif organism == 'Mouse - optimized':
+        path_ref     = f'{path_res}/mus-musculus/sc-ref/mouse_pool'
+        salmon_index = f'{path_ref}/af_tutorial_splici/mouse-optimized_idx'
+        T2G          = f'{path_ref}/mouse_mm10_optimized_v1/t2g.tsv'
+        T3G          = f'{path_ref}/mouse_mm10_optimized_v1/t2g_3col.tsv'
+
     ################################################################################
     ################################################################################
     ################################################################################

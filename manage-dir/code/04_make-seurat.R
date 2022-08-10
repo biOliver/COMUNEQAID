@@ -141,6 +141,10 @@ annotateMat <- function(mat, orga){
     require(org.Mmu.eg.db, quietly = T)
     orgDb <- org.Mmu.eg.db
   }
+  if (orga == 'Mouse - optimized') {
+    require(org.Mm.eg.db, quietly = T)
+    orgDb <- org.Mm.eg.db
+  }
   
   # Annotate genes
   ann <- suppressMessages(data.frame(mapIds(orgDb,

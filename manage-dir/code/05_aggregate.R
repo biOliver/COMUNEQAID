@@ -15,238 +15,14 @@ suppressPackageStartupMessages({
 })
 
 ################################################################################
-##########                          Functions                         ##########
-################################################################################
-'%!in%' <- function(x,y)!('%in%'(x,y))
-out_put.cex <- 1.5
-par(cex = out_put.cex)
-
-load_fry <- function(frydir, which_counts = c('U','S','A'), verbose = FALSE, output_list = F) {
-  # read in metadata
-  meta_info = rjson::fromJSON(file = file.path(frydir, 'meta_info.json'))
-  ng = meta_info[['num_genes']]
-  usa_mode = meta_info[['usa_mode']]
-  
-  if (usa_mode) {
-    if (length(which_counts) == 0) {
-      stop('Please at least provide one status in \'U\' \'S\' \'A\' ')
-    }
-    if (verbose) {
-      message('processing input in USA mode, will return ', paste(which_counts, collapse = '+'))
-    }
-  } else if (verbose) {
-    message('processing input in standard mode, will return spliced count')
-  }
-  
-  # read in count matrix
-  af_raw = readMM(file = file.path(frydir, 'alevin', 'quants_mat.mtx'))
-  
-  # if usa mode, each gene gets 3 rows, so ng/3
-  if (usa_mode) {
-    ng = as.integer(ng/3)
-  }
-  
-  # read in gene name file and cell barcode file
-  afg = read.csv(file.path(frydir, 'alevin', 'quants_mat_cols.txt'), strip.white = TRUE, header = FALSE, nrows = ng, col.names = c('gene_ids'))
-  afc = read.csv(file.path(frydir, 'alevin', 'quants_mat_rows.txt'), strip.white = TRUE, header = FALSE, col.names = c('barcodes'))
-  
-  # if in usa_mode, sum up counts in different status according to which_counts
-  if (output_list) {
-    which_counts = c('U','S','A')
-    if (usa_mode) {
-      rd = list('S' = seq(1, ng), 'U' =  seq(ng + 1, 2*ng), 'A' =  seq(2*ng + 1, 3*ng))
-      o = af_raw[, rd[[which_counts[1]]]]
-      for (wc in which_counts[-1]) {
-        o = o + af_raw[, rd[[wc]]]
-      }
-    } else {
-      o = af_raw
-    }
-    
-    res.rna <- t(o)
-    colnames(res.rna) <- afc[['barcodes']]
-    rownames(res.rna) <- afg[['gene_ids']]
-    
-    which_counts = c('S','A')
-    if (usa_mode) {
-      rd = list('S' = seq(1, ng), 'U' =  seq(ng + 1, 2*ng), 'A' =  seq(2*ng + 1, 3*ng))
-      o = af_raw[, rd[[which_counts[1]]]]
-      for (wc in which_counts[-1]) {
-        o = o + af_raw[, rd[[wc]]]
-      }
-    } else {
-      o = af_raw
-    }
-    
-    res.spl <- t(o)
-    colnames(res.spl) <- afc[['barcodes']]
-    rownames(res.spl) <- afg[['gene_ids']]
-    
-    which_counts = c('U')
-    if (usa_mode) {
-      rd = list('S' = seq(1, ng), 'U' =  seq(ng + 1, 2*ng), 'A' =  seq(2*ng + 1, 3*ng))
-      o = af_raw[, rd[[which_counts[1]]]]
-      for (wc in which_counts[-1]) {
-        o = o + af_raw[, rd[[wc]]]
-      }
-    } else {
-      o = af_raw
-    }
-    
-    res.uns <- t(o)
-    colnames(res.uns) <- afc[['barcodes']]
-    rownames(res.uns) <- afg[['gene_ids']]
-    
-    return(list('RNA'         = res.rna,
-                'Spliced'     = res.spl,
-                'Unspliced'   = res.uns))
-  }else {
-    if (usa_mode) {
-      rd = list('S' = seq(1, ng), 'U' =  seq(ng + 1, 2*ng), 'A' =  seq(2*ng + 1, 3*ng))
-      o = af_raw[, rd[[which_counts[1]]]]
-      for (wc in which_counts[-1]) {
-        o = o + af_raw[, rd[[wc]]]
-      }
-    } else {
-      o = af_raw
-    }
-    res.counts <- t(o)
-    colnames(res.counts) <- afc[['barcodes']]
-    rownames(res.counts) <- afg[['gene_ids']]
-    
-    return(res.counts)
-  }
-}
-
-emptyDropsmodal <- function(q, verbose = T, plot = T, format = 'save', skipModCheck = F){
-  
-  if (verbose) {
-    cat('#\tComputing knee & inflection from barcode ranks..\n',
-        sep = '')
-  }
-  sum.col <- Matrix::colSums(q)
-  bc.calls <- barcodeRanks(q)
-  bcs.knee <- names(sum.col)[sum.col > metadata(bc.calls)[['knee']]]
-  bcs.infl <- names(sum.col)[sum.col > metadata(bc.calls)[['inflection']]]
-  if (verbose) {
-    cat('#\t-\tcell barcodes above knee\t=\t',length(bcs.knee),'\n',
-        '#\t-\tcell barcodes above inflection\t=\t',length(bcs.infl),'\n',
-        sep = '')
-  }
-  
-  if (skipModCheck == F) {
-    cat('#\t-\tPerforming Hartigan\'s dip test on cell barcodes above knee..\n',
-        '#\t-\thypothesis: data is unimodal\n',
-        sep = '')
-    
-    dip <- diptest::dip.test(sum.col[bcs.knee])
-  }else {
-    dip <- diptest::dip.test(sum.col[bcs.knee])
-    dip[['p.value']] <- 1
-  }
-  
-  if (verbose) {
-    cat('#\t-\t\tP value = ',dip[['p.value']],'\n',
-        sep = '')
-  }
-  
-  if (dip[['p.value']] < 0.05) {
-    if (verbose) {
-      cat('#\t-\tData is multimodal..\n',
-          '#\t-\t-\tfitting mixture model on cell barcodes above inflection..\n',
-          '#\t-\t-\tfitting to: bimodal\n',
-          sep = '')
-    }
-    
-    tmp.fit <- mclust::Mclust(data = sum.col[bcs.infl], G = 1:2, verbose = F)
-    bcs.infl <- bcs.infl[tmp.fit[['classification']] == 2]
-    
-    if (verbose) {
-      cat('#\t-\t-\t\tmean\n',
-          '#\t-\t-\tmod 1\t',round(tmp.fit[['parameters']][['mean']][[1]]),'\n',
-          '#\t-\t-\tmod 2\t',round(tmp.fit[['parameters']][['mean']][[2]]),'\n',
-          '#\t-\t-\tretaining ',length(bcs.infl),' cell barcodes assigned to mod 2','\n',
-          sep = '')
-      
-      cat('#\t-\t-\tcomputing knee & inflection from barcode ranks..\n',
-          sep = '')
-    }
-    bc.calls.new <- barcodeRanks(q[,bcs.infl])
-    bcs.knee.new <- names(sum.col)[sum.col > metadata(bc.calls.new)[['knee']]]
-    bcs.infl.new <- names(sum.col)[sum.col > metadata(bc.calls.new)[['inflection']]]
-    if (verbose) {
-      cat('#\t-\t-\tcell barcodes above knee\t=\t',length(bcs.knee.new),'\n',
-          '#\t-\t-\tcell barcodes above inflection\t=\t',length(bcs.infl.new),'\n',
-          '#\t-\t-\tretaining cells above inflection..\n',
-          sep = '')
-    }
-    if (plot) {
-      if (format == 'save') {
-        png(paste0(dir.outs.qc.plots,'/',tmp.pool[['Index (10x)']],'_KneePlot.png'), width = 1500, height = 500)
-      }
-      par(mfrow = c(1,2), cex = out_put.cex)
-      r <- rank(-bc.calls[['total']])
-      suppressWarnings(plot(r, bc.calls[['total']], log = 'xy', xlab = 'Rank', ylab = 'Total UMI count', main = ''))
-      abline(h = metadata(bc.calls.new)[['knee']], col = '#ff6c00', lty = 2, lwd = 3)
-      abline(h = metadata(bc.calls.new)[['inflection']], col = '#04c2c4', lty = 2, lwd = 3)
-      abline(h = metadata(bc.calls)[['knee']], col = '#d6aa89', lty = 3, lwd = 3)
-      abline(h = metadata(bc.calls)[['inflection']], col = '#9fc9c9', lty = 3, lwd = 3)
-      abline(v = 40000, col = '#42e373', lty = 2, lwd = 3)
-      abline(v = 80000, col = '#e632b9', lty = 2, lwd = 3)
-      legend('bottomleft', bty = "n", lty = c(2,2,3,3), lwd = 3, col = c('#ff6c00', '#04c2c4','#42e373','#e632b9','#d6aa89', '#9fc9c9'), 
-             legend = c('knee (updated)', 'inflection (updated)','rank 40k','rank 80k','knee (original)', 'inflection (original)'))
-      hist(log10(bc.calls[['total']]), xlab = 'Log[10] UMI count', main = '')
-      abline(v = log10(metadata(bc.calls.new)[['knee']]), col = '#ff6c00', lty = 2, lwd = 3)
-      abline(v = log10(metadata(bc.calls.new)[['inflection']]), col = '#04c2c4', lty = 2, lwd = 3)
-      abline(v = log10(metadata(bc.calls)[['knee']]), col = '#d6aa89', lty = 3, lwd = 3)
-      abline(v = log10(metadata(bc.calls)[['inflection']]), col = '#9fc9c9', lty = 3, lwd = 3)
-      if (format == 'save') {
-        dev.off()
-      }
-    }
-  }else{
-    if (verbose) {
-      cat('#\t-\tretaining cells above inflection..\n',
-          sep = '')
-    }
-    if (plot) {
-      if (format == 'save') {
-        png(paste0(dir.outs.qc.plots,'/',tmp.pool[['Index (10x)']],'_KneePlot.png'), width = 1500, height = 500)
-      }
-      par(mfrow = c(1,2), cex = out_put.cex)
-      r <- rank(-bc.calls[['total']])
-      suppressWarnings(plot(r, bc.calls[['total']], log = 'xy', xlab = 'Rank', ylab = 'Total UMI count', main = ''))
-      abline(h = metadata(bc.calls)[['knee']], col = '#ff6c00', lty = 2, lwd = 3)
-      abline(h = metadata(bc.calls)[['inflection']], col = '#04c2c4', lty = 2, lwd = 3)
-      abline(v = 40000, col = '#42e373', lty = 2, lwd = 3)
-      abline(v = 80000, col = '#e632b9', lty = 2, lwd = 3)
-      legend('bottomleft', bty = "n", lty = c(2,2), lwd = 3, col = c('#ff6c00', '#04c2c4','#42e373','#e632b9'), 
-             legend = c('knee','inflection','rank 40k','rank 80k'))
-      hist(log10(bc.calls[['total']]), xlab = 'Log[10] UMI count', main = '')
-      abline(v = log10(metadata(bc.calls)[['knee']]), col = '#ff6c00', lty = 2, lwd = 3)
-      abline(v = log10(metadata(bc.calls)[['inflection']]), col = '#04c2c4', lty = 2, lwd = 3)
-      abline(h = 40000, col = '#42e373', lty = 2, lwd = 3)
-      abline(h = 80000, col = '#e632b9', lty = 2, lwd = 3)
-      if (format == 'save') {
-        dev.off()
-      }
-    }
-  }
-  if (verbose) {
-    cat('#\n',
-        '#\n',
-        sep = '')
-  }
-  return(bcs.infl)
-}
-
-################################################################################
 ##########                            Init                            ##########
 ################################################################################
 scop.ID     <- snakemake@params[['scopID']]
 com.ID      <- snakemake@params[['comID']]
 com.ID.list <- str_split(com.ID, ',', simplify = T)[1,]
 user.ID     <- snakemake@params[['userID']]
+
+source(file.path('/projects', user.ID, 'COMUNEQAID/manage-dir/code/shared_functions.R'))
 
 dir.proj <- paste0('/', file.path('projects',user.ID,'COMUNEQAID','outs',scop.ID))
 dir.outs.qc <- file.path(dir.proj, 'scRNAseq', '00_QC')
@@ -418,11 +194,12 @@ foreach(i = seq(com.ID.list),
   seur.comb <- RunPCA(seur.comb, verbose = FALSE)
   cat('#\t-\testimating dimensionality','\n',
       sep = '')
-  dims <- round(
-    as.numeric(
-      intrinsicDimension::maxLikGlobalDimEst(
-        data = seur.comb@reductions[['pca']][, 1:50],
-        k = 20)))
+  #dims <- round(
+   # as.numeric(
+   #   intrinsicDimension::maxLikGlobalDimEst(
+    #    data = seur.comb@reductions[['pca']][, 1:50],
+     #   k = 20)))
+  dims <- 50
   cat('#\t-\tperforming UMAP\n',
       sep = '')
   seur.comb <- suppressWarnings(RunUMAP(seur.comb, dims = seq(dims), verbose = FALSE))

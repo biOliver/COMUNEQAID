@@ -19,6 +19,7 @@ suppressPackageStartupMessages({
   library(AnnotationDbi)
 })
 
+<<<<<<< HEAD
 ################################################################################
 ##########                          Functions                         ##########
 ################################################################################
@@ -479,6 +480,8 @@ makeUmiPlot <- function(feat.RNA, feat.HTO, CBs.called, title = 'Please give thi
   return(p)
 }
 
+=======
+>>>>>>> bfeff6c77576769f6de41dc245ae829fe59fb61c
 
 
 ################################################################################
@@ -488,6 +491,8 @@ scop.ID     <- snakemake@params[['scopID']]
 com.ID      <- snakemake@params[['comID']]
 com.ID.list <- str_split(com.ID, ',', simplify = T)[1,]
 user.ID     <- snakemake@params[['userID']]
+
+source(file.path('/projects', user.ID, 'COMUNEQAID/manage-dir/code/shared_functions.R'))
 
 dir.proj <- paste0('/', file.path('projects',user.ID,'COMUNEQAID','outs',scop.ID))
 dir.outs.qc <- file.path(dir.proj, 'scRNAseq', '00_QC')
@@ -690,7 +695,10 @@ for (com.ID in com.ID.list) {
       
       cat('#\t-\tdemultiplexing HTOs..\n',
           sep = '')
-      seur.full <- HTODemux.mcl(seur.full, q = 1)
+      # Setting the threshold based on the quantiles of the negative and the positive clusters.
+      q_l = 1
+      q_h = 0.001
+      seur.full <- HTODemux.mcl(seur.full, q_l =  q_l, q_h = q_h)
       seur.full[,seur.full$HTO_mcl_classification.global == 'Doublet']
       
       table(seur.full$HTO_mcl_classification.global)[names(table(seur.full$HTO_mcl_classification.global)) == 'Doublet']
@@ -700,7 +708,7 @@ for (com.ID in com.ID.list) {
           '#\t-\t\tSinglets:\t\t',table(seur.full$HTO_mcl_classification.global)[names(table(seur.full$HTO_mcl_classification.global)) == 'Singlet'],'\n',
           sep = '')
       
-      HTODemux.mcl.visualization(seur.full)
+      HTODemux_mcl.visualization(seur.full, q_l =  q_l, q_h = q_h)
       
       cat('#\t-\tperforming tSNE\n',
           sep = '')

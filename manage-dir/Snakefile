@@ -32,17 +32,19 @@ rule fastqs:
     script:
         'code/01_make-fastqs.py'
 
-rule fastqc:
-    input:
-        rules.fastqs.output
-    output:
-        temp('success/fastqc_complete.txt')
-    params:
-        scopID = config['scopID'],
-        comID = config['comID'],
-        userID = config['userID']
-    script:
-        'code/02_fastqc.py'
+#rule fastqc:
+#    input:
+#        rules.fastqs.output
+#    output:
+#        temp('success/fastqc_complete.txt')
+#    params:
+#        scopID = config['scopID'],
+#        comID = config['comID'],
+#        userID = config['userID']
+#    threads:
+#        1
+#    script:
+#        'code/02_fastqc.py'
 
 rule quant:
     input:
@@ -128,7 +130,7 @@ rule cleanup:
     input:
         #rules.integrate.output
         rules.aggregate.output,
-        rules.fastqc.output
+#        rules.fastqc.output
     output:
         temp('success/cleanup_complete.txt')
     params:

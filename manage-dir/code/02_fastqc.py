@@ -58,8 +58,8 @@ for comID in comID_list:
         tmp_path_fastqs = f'{path_fastq}/{seq_name}/fastq-path/{flowID}'
         tmp_path_qc = f'{path_qc}/fastQC/{seq_name}'
 
-        print(tmp_path_fastqs)
-        print(tmp_path_qc)
+        #print(tmp_path_fastqs)
+        #print(tmp_path_qc)
 
 
         if os.path.isdir(f'{tmp_path_qc}'):
@@ -67,6 +67,6 @@ for comID in comID_list:
 
         else:
             os.system(f'mkdir -p {tmp_path_qc}')
-            print(f'time /tools/fastqc/0.11.5/fastqc {tmp_path_fastqs}/*.fastq.gz --threads 1 --outdir {tmp_path_qc}')
+            os.system(f'time /tools/fastqc/0.11.5/fastqc {tmp_path_fastqs}/*.fastq.gz --threads 1 --outdir {tmp_path_qc}')
 
 os.system(f'touch {snakemake.output[0]}')

@@ -163,21 +163,45 @@ for comID in comID_list:
             os.system(f'mkdir -p {path_quant_out}')
 
             logging.info(f'##\tmapping with alevin')
-            os.system(f'/tools/anaconda/envs/blp841/snakeQuant/bin/salmon alevin \
+            os.system(f'/tools/anaconda/envs/blp841/salmon-new/bin/salmon alevin \
                         -i {salmon_index} -p {snakemake.threads} -l ISR --chromiumV3 --sketch \
                         -1 {files_read_1} -2 {files_read_2} \
                         -o {path_quant_out}/map --tgMap {T2G} 2>&1 | tee {path_quant_out}/alevin-fry.log -a')
 
             logging.info(f'##\tgenerating permit list')
-            os.system(f'alevin-fry generate-permit-list -d both -u {whitelist} \
+            os.system(f'/tools/anaconda/envs/blp841/salmon-new/bin/alevin-fry generate-permit-list -d both -u {whitelist} \
                         -i {path_quant_out}/map -o {path_quant_out}/quant 2>&1 | tee {path_quant_out}/alevin-fry.log -a')
 
             logging.info(f'##\tcollating')
-            os.system(f'alevin-fry collate -t 10 -i {path_quant_out}/quant -r {path_quant_out}/map 2>&1 | tee {path_quant_out}/alevin-fry.log -a')
+            os.system(f'/tools/anaconda/envs/blp841/salmon-new/bin/alevin-fry collate -t 1 -i {path_quant_out}/quant -r {path_quant_out}/map 2>&1 | tee {path_quant_out}/alevin-fry.log -a')
 
             logging.info(f'##\tquantifying')
-            os.system(f'alevin-fry quant -t {snakemake.threads} -i {path_quant_out}/quant \
+            os.system(f'/tools/anaconda/envs/blp841/salmon-new/bin/alevin-fry quant -t {snakemake.threads} -i {path_quant_out}/quant \
                         -o {path_quant_out}/res --tg-map {T3G} --resolution cr-like --use-mtx 2>&1 | tee {path_quant_out}/alevin-fry.log -a')
+
+            count_genes = 0
+            count_cells = 0
+
+            with open(f'{path_quant_out}/res/alevin/quants_mat_cols.txt', 'r') as f:
+                for count_genes, line in enumerate(f):
+                    pass
+
+            with open(f'{path_quant_out}/res/alevin/quants_mat_rows.txt', 'r') as f:
+                for count_cells, line in enumerate(f):
+                    pass
+
+            count_genes += 1
+            count_cells += 1
+
+            with open(f'{path_quant_out}/res/meta_info.json', 'w') as f:
+                f.write('{')
+                f.write('  "alt_resolved_cell_numbers": [],')
+                f.write('  "dump_eq": false,')
+                f.write(f'  "num_genes": {count_genes},')
+                f.write(f'  "num_quantified_cells": {count_cells},')
+                f.write('  "resolution_strategy": "CellRangerLike",')
+                f.write('  "usa_mode": true')
+                f.write('}')
 
     if (workflow == '10x + HTO'):
         logging.info('##\tMapping and quantifying HTO libraries:')
@@ -225,25 +249,46 @@ for comID in comID_list:
                 os.system('awk {0} {1}/{2} > {1}/t2g_hto.tsv'.format('\'{print $1\"\\t\"$1;}\'', path_quant_out, features_tsv_name))
 
                 logging.info('##\tbuilding HTO index')
-                os.system(f'/tools/anaconda/envs/blp841/snakeQuant/bin/salmon index \
+                os.system(f'/tools/anaconda/envs/blp841/salmon-new/bin/salmon index \
                             -t {path_quant_out}/{features_tsv_name} \
                             -i {path_quant_out}/hto_index --features -k 7 2>&1 | tee {path_quant_out}/alevin-fry.log -a')
     
                 logging.info(f'##\tmapping with alevin')
-                os.system(f'/tools/anaconda/envs/blp841/snakeQuant/bin/salmon alevin -l ISR \
+                os.system(f'/tools/anaconda/envs/blp841/salmon-new/bin/salmon alevin -l ISR \
                             -i {path_quant_out}/hto_index -1 {files_read_1} -2 {files_read_2} \
                             --read-geometry 2[1-15] --bc-geometry 1[1-16] --umi-geometry 1[17-26] \
                             -o {path_quant_out}/map -p {snakemake.threads} --sketch 2>&1 | tee {path_quant_out}/alevin-fry.log -a')
 
                 logging.info(f'##\tgenerating permit list')
-                os.system(f'alevin-fry generate-permit-list -d fw -i {path_quant_out}/map -o {path_quant_out}/quant -u {whitelist} 2>&1 | tee {path_quant_out}/alevin-fry.log -a')
+                os.system(f'/tools/anaconda/envs/blp841/salmon-new/bin/alevin-fry generate-permit-list -d fw -i {path_quant_out}/map -o {path_quant_out}/quant -u {whitelist} 2>&1 | tee {path_quant_out}/alevin-fry.log -a')
             
                 logging.info(f'##\tcollating')
-                os.system(f'alevin-fry collate -r {path_quant_out}/map -i {path_quant_out}/quant -t 8 2>&1 | tee {path_quant_out}/alevin-fry.log -a')
+                os.system(f'/tools/anaconda/envs/blp841/salmon-new/bin/alevin-fry collate -r {path_quant_out}/map -i {path_quant_out}/quant -t 1 2>&1 | tee {path_quant_out}/alevin-fry.log -a')
  
                 logging.info(f'##\tquantifying')
-                os.system(f'alevin-fry quant -m {path_quant_out}/t2g_hto.tsv -i {path_quant_out}/quant -o {path_quant_out}/res \
+                os.system(f'/tools/anaconda/envs/blp841/salmon-new/bin/alevin-fry quant -m {path_quant_out}/t2g_hto.tsv -i {path_quant_out}/quant -o {path_quant_out}/res \
                             -r cr-like -t {snakemake.threads} --use-mtx 2>&1 | tee {path_quant_out}/alevin-fry.log -a')
+
+                with open(f'{path_quant_out}/res/alevin/quants_mat_cols.txt', 'r') as f:
+                    for count_genes, line in enumerate(f):
+                        pass
+
+                with open(f'{path_quant_out}/res/alevin/quants_mat_rows.txt', 'r') as f:
+                    for count_cells, line in enumerate(f):
+                        pass
+
+                count_genes += 1
+                count_cells += 1
+
+                with open(f'{path_quant_out}/res/meta_info.json', 'w') as f:
+                    f.write('{\n')
+                    f.write('  "alt_resolved_cell_numbers": [],\n')
+                    f.write('  "dump_eq": false,\n')
+                    f.write(f'  "num_genes": {count_genes},\n')
+                    f.write(f'  "num_quantified_cells": {count_cells},\n')
+                    f.write('  "resolution_strategy": "CellRangerLike",\n')
+                    f.write('  "usa_mode": false\n')
+                    f.write('}')
 
     logging.info('##\n###')
     logging.info('#'*80)

@@ -295,7 +295,7 @@ for comID in comID_list:
         agg_samp = tmp_samp.groupby('Index (10x)',as_index=False).agg(lambda x: '_'.join(x.unique()))
         sum_samp = tmp_samp.groupby('Index (10x)',as_index=False).sum()
         max_samp = tmp_samp.groupby('Index (10x)',as_index=False).max()
-    
+
         poo_samp = pd.DataFrame(columns=['Index (10x)', 'Index (HTO)', 'Lane', 'Loaded Cells'])
     
         if '*' in max_samp['Lane'].tolist():
